@@ -1,0 +1,90 @@
+---
+interface Props {
+  variant?: 'default' | 'bordered' | 'elevated';
+  padding?: 'none' | 'sm' | 'md' | 'lg';
+  hoverable?: boolean;
+  class?: string;
+}
+
+const {
+  variant = 'default',
+  padding = 'md',
+  hoverable = false,
+  class: className = '',
+} = Astro.props;
+---
+
+<div
+  class={`card card-${variant} card-padding-${padding} ${
+    hoverable ? 'card-hoverable' : ''
+  } ${className}`}
+>
+  <slot />
+</div>
+
+<style>
+  .card {
+    border-radius: var(--radius-lg);
+    transition: all var(--transition-base);
+  }
+
+  /* Variants */
+  .card-default {
+    background-color: var(--color-background);
+    border: 1px solid var(--color-border);
+  }
+
+  .card-bordered {
+    background-color: var(--color-background);
+    border: 2px solid var(--color-border);
+  }
+
+  .card-elevated {
+    background-color: var(--color-background);
+    border: 1px solid var(--color-border);
+    box-shadow: var(--shadow-md);
+  }
+
+  /* Padding */
+  .card-padding-none {
+    padding: 0;
+  }
+
+  .card-padding-sm {
+    padding: var(--space-4);
+  }
+
+  .card-padding-md {
+    padding: var(--space-6);
+  }
+
+  .card-padding-lg {
+    padding: var(--space-8);
+  }
+
+  /* Hoverable */
+  .card-hoverable {
+    cursor: pointer;
+  }
+
+  .card-hoverable:hover {
+    border-color: var(--color-border-hover);
+    box-shadow: var(--shadow-lg);
+    transform: translateY(-2px);
+  }
+
+  .card-hoverable:active {
+    transform: translateY(0);
+  }
+
+  /* Responsive padding */
+  @media (max-width: 768px) {
+    .card-padding-md {
+      padding: var(--space-4);
+    }
+
+    .card-padding-lg {
+      padding: var(--space-6);
+    }
+  }
+</style>

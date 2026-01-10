@@ -1,0 +1,68 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import Header from '../../components/layout/Header.astro';
+import AnalyticsDashboard from '../../components/analytics/AnalyticsDashboard';
+---
+
+<BaseLayout title="Analytics | Theme Park Analytics">
+  <Header />
+  <main class="analytics-page">
+    <div class="page-header">
+      <div class="container">
+        <h1>Analytics & Insights</h1>
+        <p class="subtitle">
+          Discover the best times to visit with crowd predictions and historical patterns
+        </p>
+      </div>
+    </div>
+    <AnalyticsDashboard client:load />
+  </main>
+</BaseLayout>
+
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap');
+
+  .analytics-page {
+    background-color: #fafbfc;
+    min-height: calc(100vh - 64px);
+  }
+
+  .container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 24px;
+  }
+
+  .page-header {
+    padding: 32px 0 24px;
+    border-bottom: 1px solid #e2e8f0;
+    background: white;
+    margin-bottom: 24px;
+  }
+
+  h1 {
+    font-family: 'Outfit', sans-serif;
+    font-size: 28px;
+    font-weight: 700;
+    color: #1e293b;
+    margin: 0 0 8px 0;
+    letter-spacing: -0.5px;
+  }
+
+  .subtitle {
+    font-family: 'Outfit', sans-serif;
+    font-size: 15px;
+    color: #64748b;
+    margin: 0;
+  }
+
+  @media (max-width: 600px) {
+    .container {
+      padding: 0 16px;
+    }
+
+    h1 {
+      font-size: 24px;
+    }
+  }
+</style>

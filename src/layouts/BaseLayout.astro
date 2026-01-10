@@ -1,0 +1,84 @@
+---
+import '../styles/global.css';
+import '../styles/animations.css';
+
+interface Props {
+  title: string;
+  description?: string;
+  showFooter?: boolean;
+}
+
+const {
+  title = 'Theme Park Analytics',
+  description = 'Make informed decisions about when to visit your favorite theme parks with real-time wait times and crowd analytics',
+  showFooter = false,
+} = Astro.props;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content={description} />
+    <meta name="generator" content={Astro.generator} />
+
+    <!-- Open Graph -->
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:type" content="website" />
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+
+    <!-- Preload critical fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+
+    <title>{title}</title>
+  </head>
+  <body>
+    <slot />
+
+    {showFooter && (
+      <footer class="attribution">
+        <div class="container">
+          <p>
+            Data powered by{' '}
+            <a
+              href="https://queue-times.com"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Queue-Times.com
+            </a>
+          </p>
+        </div>
+      </footer>
+    )}
+  </body>
+</html>
+
+<style>
+  .attribution {
+    padding: 24px 0;
+    border-top: 1px solid #e2e8f0;
+    text-align: center;
+    background: #fafbfc;
+  }
+
+  .attribution p {
+    font-size: 13px;
+    color: #64748b;
+    margin: 0;
+  }
+
+  .attribution a {
+    color: #0284c7;
+    text-decoration: underline;
+  }
+
+  .attribution a:hover {
+    color: #0369a1;
+  }
+</style>

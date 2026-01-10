@@ -1,0 +1,150 @@
+---
+const pathname = Astro.url.pathname;
+
+const navItems = [
+  { href: '/', label: 'Dashboard' },
+  { href: '/analytics', label: 'Analytics' },
+  { href: '/plan', label: 'Plan My Visit' },
+];
+
+function isActive(href: string, pathname: string): boolean {
+  if (href === '/') {
+    return pathname === '/';
+  }
+  return pathname.startsWith(href);
+}
+---
+
+<header class="header">
+  <div class="header-container">
+    <a href="/" class="logo">
+      <span class="logo-icon">🎢</span>
+      <span class="logo-text">ParkPulse</span>
+    </a>
+
+    <nav class="nav">
+      {
+        navItems.map((item) => (
+          <a
+            href={item.href}
+            class={`nav-link ${isActive(item.href, pathname) ? 'active' : ''}`}
+          >
+            {item.label}
+          </a>
+        ))
+      }
+    </nav>
+
+    <div class="header-actions">
+      <a href="/plan" class="cta-button">
+        Create Plan
+      </a>
+    </div>
+  </div>
+</header>
+
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap');
+
+  .header {
+    background: #ffffff;
+    border-bottom: 1px solid #e2e8f0;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  .header-container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 0 24px;
+    height: 64px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 32px;
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    text-decoration: none;
+    color: #1e293b;
+  }
+
+  .logo-icon {
+    font-size: 24px;
+  }
+
+  .logo-text {
+    font-family: 'Outfit', sans-serif;
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+  }
+
+  .nav {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .nav-link {
+    font-family: 'Outfit', sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+    color: #64748b;
+    text-decoration: none;
+    padding: 8px 16px;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+  }
+
+  .nav-link:hover {
+    color: #1e293b;
+    background: #f1f5f9;
+  }
+
+  .nav-link.active {
+    color: #0284c7;
+    background: #e0f2fe;
+  }
+
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .cta-button {
+    font-family: 'Outfit', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    color: white;
+    background: #1a1a1a;
+    padding: 10px 20px;
+    border-radius: 8px;
+    text-decoration: none;
+  }
+
+  .cta-button:hover {
+    background: #333;
+  }
+
+  /* Mobile Responsive */
+  @media (max-width: 768px) {
+    .header-container {
+      padding: 0 16px;
+    }
+
+    .nav {
+      display: none;
+    }
+
+    .cta-button {
+      padding: 8px 16px;
+      font-size: 13px;
+    }
+  }
+</style>

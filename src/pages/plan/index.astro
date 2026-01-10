@@ -1,0 +1,19 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import Header from '../../components/layout/Header.astro';
+import PlanWizard from '../../components/plan-wizard/PlanWizard';
+---
+
+<BaseLayout title="Plan My Visit | Theme Park Analytics">
+  <Header />
+  <main class="plan-page">
+    <PlanWizard client:load />
+  </main>
+</BaseLayout>
+
+<style>
+  .plan-page {
+    background-color: #f5f5f5;
+    min-height: calc(100vh - 64px);
+  }
+</style>
