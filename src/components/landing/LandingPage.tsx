@@ -449,7 +449,7 @@ export default function LandingPage() {
       </section>
 
       <footer className="landing-footer">
-        <p className="copyright">© {new Date().getFullYear()} ParkPulse</p>
+        <p className="copyright">© {new Date().getFullYear()} ParkPlannerAI</p>
         <p>
           Data from{' '}
           <a href="https://queue-times.com" target="_blank" rel="noopener noreferrer">
