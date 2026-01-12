@@ -1,18 +1,24 @@
-/* Analytics Dashboard Styles */
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap');
+/* Analytics Dashboard Styles - Warm Cream & Orange Theme */
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=DM+Sans:wght@400;500;600;700&display=swap');
 
 .analytics-dashboard {
-  --color-bg: #fafbfc;
+  --color-bg: #fdfbf7;
   --color-surface: #ffffff;
-  --color-border: #e2e8f0;
+  --color-elevated: #f8f6f1;
+  --color-border: #e2e0db;
+  --color-border-light: #f0eee9;
   --color-text-primary: #1e293b;
-  --color-text-secondary: #475569;
-  --color-text-tertiary: #64748b;
-  --color-primary: #0284c7;
-  --color-success: #10b981;
-  --color-warning: #f59e0b;
+  --color-text-secondary: #64748b;
+  --color-text-tertiary: #94a3b8;
+  --color-primary: #c2410c;
+  --color-primary-light: #fff7ed;
+  --color-primary-hover: #9a3412;
+  --color-success: #65a30d;
+  --color-success-light: #f7fee7;
+  --color-warning: #d97706;
+  --color-warning-light: #fffbeb;
 
-  font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
   max-width: 1200px;
   margin: 0 auto;
   padding: 24px;
@@ -23,8 +29,8 @@
   display: flex;
   align-items: flex-start;
   gap: 16px;
-  background: linear-gradient(135deg, #dbeafe 0%, #e0f2fe 100%);
-  border: 1px solid #93c5fd;
+  background: linear-gradient(135deg, var(--color-primary-light) 0%, #fef3c7 100%);
+  border: 1px solid rgba(194, 65, 12, 0.2);
   border-radius: 12px;
   padding: 20px 24px;
   margin-bottom: 32px;
@@ -56,8 +62,9 @@
 
 /* Section Headers */
 .analytics-dashboard h2 {
-  font-size: 18px;
-  font-weight: 700;
+  font-family: 'Fraunces', Georgia, serif;
+  font-size: 20px;
+  font-weight: 600;
   color: var(--color-text-primary);
   margin: 0 0 16px 0;
 }
@@ -99,7 +106,7 @@
 
 .insight-card:hover {
   border-color: var(--color-primary);
-  box-shadow: 0 4px 12px rgba(2, 132, 199, 0.1);
+  box-shadow: 0 4px 12px rgba(194, 65, 12, 0.1);
 }
 
 .insight-icon {
@@ -115,15 +122,16 @@
 
 .insight-title {
   font-size: 12px;
-  font-weight: 500;
+  font-weight: 600;
   color: var(--color-text-tertiary);
   text-transform: uppercase;
   letter-spacing: 0.3px;
 }
 
 .insight-value {
+  font-family: 'Fraunces', Georgia, serif;
   font-size: 18px;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--color-text-primary);
 }
 
@@ -177,6 +185,7 @@
 }
 
 .chart-container h3 {
+  font-family: 'Fraunces', Georgia, serif;
   font-size: 16px;
   font-weight: 600;
   color: var(--color-text-primary);
@@ -187,13 +196,14 @@
 }
 
 .chart-badge {
+  font-family: 'DM Sans', sans-serif;
   font-size: 10px;
-  font-weight: 500;
+  font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   padding: 3px 8px;
-  background: #fef3c7;
-  color: #d97706;
+  background: var(--color-primary-light);
+  color: var(--color-primary);
   border-radius: 12px;
 }
 
@@ -235,8 +245,8 @@
 }
 
 .tip-card:hover {
-  border-color: var(--color-border);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  border-color: var(--color-primary);
+  box-shadow: 0 4px 12px rgba(194, 65, 12, 0.08);
   transform: translateY(-2px);
 }
 
@@ -247,6 +257,7 @@
 }
 
 .tip-card h4 {
+  font-family: 'DM Sans', sans-serif;
   font-size: 15px;
   font-weight: 600;
   color: var(--color-text-primary);
@@ -262,11 +273,11 @@
 
 /* Recharts custom styles */
 .recharts-cartesian-axis-tick-value {
-  font-family: 'Outfit', sans-serif;
+  font-family: 'DM Sans', sans-serif;
 }
 
 .recharts-legend-item-text {
-  font-family: 'Outfit', sans-serif !important;
+  font-family: 'DM Sans', sans-serif !important;
   font-size: 12px !important;
   color: var(--color-text-secondary) !important;
 }

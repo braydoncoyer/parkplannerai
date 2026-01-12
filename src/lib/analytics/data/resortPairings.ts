@@ -34,6 +34,24 @@ export const RESORT_CONFIGS: ResortConfig[] = [
     ],
     transitionTime: 30, // Bus/monorail travel between parks
   },
+  {
+    resortId: 'universal-orlando',
+    resortName: 'Universal Orlando Resort',
+    parks: [
+      { id: 65, name: 'Universal Studios Florida', shortName: 'USF' },
+      { id: 64, name: 'Islands of Adventure', shortName: 'IOA' },
+      { id: 334, name: 'Epic Universe', shortName: 'EU' },
+    ],
+    transitionTime: 20, // Walking/shuttle between parks
+  },
+  {
+    resortId: 'universal-hollywood',
+    resortName: 'Universal Hollywood',
+    parks: [
+      { id: 66, name: 'Universal Studios Hollywood', shortName: 'USH' },
+    ],
+    transitionTime: 0, // Single park resort
+  },
 ];
 
 /**

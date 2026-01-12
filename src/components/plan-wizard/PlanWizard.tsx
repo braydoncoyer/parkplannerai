@@ -45,6 +45,8 @@ import {
 } from '../../lib/analytics/data/landActivities';
 import { getWalkTimeBetweenLands } from '../../lib/analytics/optimization/rideOrderer';
 import { getRideWeight, type RideCategory as WeightCategory } from '../../lib/analytics/data/rideWeights';
+import headlinerImages from '../../lib/analytics/data/headlinerImages.json';
+import parkImagesData from '../../lib/analytics/data/parkImages.json';
 import {
   getParkHours,
   type ParkHours,
@@ -67,6 +69,65 @@ import {
   TRANSITION_TIME_OPTIONS,
   type ResortPark,
 } from '../../lib/analytics/data/resortPairings';
+
+// ============================================================================
+// HEADLINER IMAGE LOOKUP
+// ============================================================================
+
+const DEFAULT_HEADLINER_IMAGE = 'https://cdn1.parksmedia.wdprapps.disney.com/resize/mwImage/1/630/354/75/dam/disney-world/destinations/hollywood-studios/star-wars-galaxys-edge/rise-resistance-16x9.jpg?1703167709482';
+
+/**
+ * Normalize a ride name for matching - removes special characters, trademarks, etc.
+ */
+function normalizeRideName(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[™®©]/g, '') // Remove trademark symbols
+    .replace(/['']/g, "'") // Normalize apostrophes
+    .replace(/[–—]/g, '-') // Normalize dashes
+    .replace(/\s+/g, ' ')  // Normalize whitespace
+    .trim();
+}
+
+/**
+ * Get the headliner image URL for a ride by name
+ * Uses fuzzy matching to find the best match across all parks
+ * Prioritizes non-empty URLs over empty ones
+ */
+function getHeadlinerImage(rideName: string): string {
+  const normalizedName = normalizeRideName(rideName);
+
+  // Search through all parks for a matching ride with a non-empty URL
+  for (const parkRides of Object.values(headlinerImages)) {
+    for (const [rideKey, imageUrl] of Object.entries(parkRides)) {
+      const normalizedKey = normalizeRideName(rideKey);
+
+      // Exact match
+      if (normalizedKey === normalizedName) {
+        if (imageUrl) return imageUrl;
+        continue;
+      }
+
+      // Partial match (ride name contains key or key contains ride name)
+      if (normalizedName.includes(normalizedKey) || normalizedKey.includes(normalizedName)) {
+        if (imageUrl) return imageUrl;
+        continue;
+      }
+
+      // Word-based matching for multi-word names (need at least 2 significant words to match)
+      const keyWords = normalizedKey.split(/\s+/).filter(w => w.length > 3 && !['the', 'and', 'of'].includes(w));
+      const nameWords = normalizedName.split(/\s+/).filter(w => w.length > 3 && !['the', 'and', 'of'].includes(w));
+      const matchingWords = keyWords.filter(kw => nameWords.some(nw => nw.includes(kw) || kw.includes(nw)));
+
+      if (matchingWords.length >= 2 || (keyWords.length === 1 && matchingWords.length === 1)) {
+        if (imageUrl) return imageUrl;
+        continue;
+      }
+    }
+  }
+
+  return DEFAULT_HEADLINER_IMAGE;
+}
 
 // ============================================================================
 // TYPES
@@ -111,6 +172,7 @@ interface ItineraryItem {
   suggestionType?: 'dining' | 'shopping' | 'show';
   // Break-specific fields
   breakDuration?: number; // in minutes
+  peakWaitTime?: number; // the wait time being avoided during break
   diningName?: string;
   diningDetail?: string;
   diningImage?: string;
@@ -192,22 +254,49 @@ const PARK_ENTERTAINMENT_SUPPORT: Record<number, { hasFireworks: boolean; hasPar
   66: { hasFireworks: false, hasParade: false },
 };
 
-const PARK_IMAGES: Record<number, string> = {
+// Fallback park images (used when JSON has no image)
+const FALLBACK_PARK_IMAGES: Record<number, string> = {
   // Walt Disney World
   6: 'https://images.pexels.com/photos/8183994/pexels-photo-8183994.jpeg?auto=compress&cs=tinysrgb&w=600', // Magic Kingdom
   5: 'https://media.cntraveler.com/photos/5cb5f5d38ae5d86a66e28b32/master/pass/Epcot-1.jpg', // EPCOT
-  8: 'https://images.pexels.com/photos/14243455/pexels-photo-14243455.jpeg?auto=compress&cs=tinysrgb&w=600', // Hollywood Studios
-  7: 'https://images.pexels.com/photos/3617464/pexels-photo-3617464.jpeg?auto=compress&cs=tinysrgb&w=600', // Animal Kingdom
-  // Universal Orlando
-  16: 'https://cdn.sanity.io/images/nxpteyfv/goguides/67081eefba89c13fadbba407039cb7cba1e70b9b-1536x1024.jpg', // Universal Studios Florida
-  17: 'https://www.disneydining.com/wp-content/uploads/2024/02/universal-orlando-islands-of-adventure.jpg', // Islands of Adventure
-  334: 'https://www.universalorlando.com/webdata/k2/en/us/files/Images/gds/ueu-theme-park-chronos-daytime-with-guests-c.jpg', // Epic Universe
+  7: 'https://images.pexels.com/photos/14243455/pexels-photo-14243455.jpeg?auto=compress&cs=tinysrgb&w=600', // Hollywood Studios (has Fantasmic)
+  8: 'https://images.pexels.com/photos/3617464/pexels-photo-3617464.jpeg?auto=compress&cs=tinysrgb&w=600', // Animal Kingdom
   // Disneyland Resort
-  64: 'https://cdn1.parksmedia.wdprapps.disney.com/resize/mwImage/1/1349/464/75/dam/disneyland/attractions/disneyland/sleeping-beauty-castle-walkthrough/sleeping-beauty-castle-exterior-16x9.jpg', // Disneyland
-  65: 'https://cdn1.parksmedia.wdprapps.disney.com/resize/mwImage/1/480/1280/90/media/disneyparksjapan-prod/disneyparksjapan_v0001/1/media/dlr/events/pixar-pier-sunset-render-16x9.jpg', // Disney California Adventure
+  16: 'https://cdn1.parksmedia.wdprapps.disney.com/resize/mwImage/1/1349/464/75/dam/disneyland/attractions/disneyland/sleeping-beauty-castle-walkthrough/sleeping-beauty-castle-exterior-16x9.jpg', // Disneyland
+  17: 'https://cdn1.parksmedia.wdprapps.disney.com/resize/mwImage/1/480/1280/90/media/disneyparksjapan-prod/disneyparksjapan_v0001/1/media/dlr/events/pixar-pier-sunset-render-16x9.jpg', // Disney California Adventure
+  // Universal Orlando
+  64: 'https://www.disneydining.com/wp-content/uploads/2024/02/universal-orlando-islands-of-adventure.jpg', // Islands of Adventure
+  65: 'https://cache.undercovertourist.com/blog/2022/10/1022-best-time-visit-uor-globe.jpg', // Universal Studios Florida
+  67: 'https://www.thetopvillas.com/blog/wp-content/uploads/2017/06/rsz_1volcano_bay_orlando-1.jpg', // Volcano Bay
+  334: 'https://www.universalorlando.com/webdata/k2/en/us/files/Images/gds/ueu-theme-park-chronos-daytime-with-guests-c.jpg', // Epic Universe
   // Universal Hollywood
-  68: 'https://cdn.sanity.io/images/nxpteyfv/goguides/67081eefba89c13fadbba407039cb7cba1e70b9b-1536x1024.jpg', // Universal Studios Hollywood
+  66: 'https://res.cloudinary.com/simpleview/image/upload/v1612197440/clients/anaheimca/uni_studios_hollywood_max_res_default2_3f15e0a6-8283-470c-8870-1f2a89c02952.jpg', // Universal Studios Hollywood
 };
+
+// Build a flat map of park ID to image URL from the JSON
+const PARK_IMAGES_FROM_JSON: Record<number, string> = {};
+for (const resortParks of Object.values(parkImagesData)) {
+  for (const [parkId, parkData] of Object.entries(resortParks)) {
+    const data = parkData as { name: string; image: string };
+    if (data.image) {
+      PARK_IMAGES_FROM_JSON[Number(parkId)] = data.image;
+    }
+  }
+}
+
+/**
+ * Get the image URL for a park by ID
+ * First checks the JSON file, then falls back to hardcoded defaults
+ */
+function getParkImage(parkId: number): string {
+  // Check JSON-sourced images first
+  if (PARK_IMAGES_FROM_JSON[parkId]) {
+    return PARK_IMAGES_FROM_JSON[parkId];
+  }
+
+  // Fall back to hardcoded defaults
+  return FALLBACK_PARK_IMAGES[parkId] || DEFAULT_IMAGE;
+}
 
 const DEFAULT_IMAGE =
   'https://images.pexels.com/photos/8183994/pexels-photo-8183994.jpeg?auto=compress&cs=tinysrgb&w=600';
@@ -376,7 +465,7 @@ function ParkSelection({
       >
         <div
           className="pw-park-image"
-          style={{ backgroundImage: `url(${PARK_IMAGES[park.id] || DEFAULT_IMAGE})` }}
+          style={{ backgroundImage: `url(${getParkImage(park.id)})` }}
         />
         <div className="pw-park-overlay" />
         <div className="pw-park-content">
@@ -1519,6 +1608,12 @@ function TripReportView({
               const isMealBreak = item.type === 'meal' || item.type === 'break';
               const isParkTransition = item.name?.includes('Park Transition');
 
+              // Check if this is a headliner ride (must-do attractions with high weight)
+              const isHeadliner = item.type === 'ride' && !item.isReride && (() => {
+                const rideWeight = getRideWeight(item.name);
+                return rideWeight.mustDo || rideWeight.weight >= 85;
+              })();
+
               // Render special park transition item
               if (isParkTransition) {
                 return (
@@ -1540,6 +1635,44 @@ function TripReportView({
 
               // Render special break card for meal/break items
               if (isMealBreak) {
+                const isLunchOrDinner = item.name.toLowerCase().includes('lunch') || item.name.toLowerCase().includes('dinner');
+                const mealType = item.name.toLowerCase().includes('lunch') ? 'lunch' :
+                                 item.name.toLowerCase().includes('dinner') ? 'dinner' : 'a snack';
+
+                // Build a coherent sentence for the break with bolded suggestions
+                const buildBreakSentence = () => {
+                  const elements: React.ReactNode[] = [];
+
+                  // Start with wait time savings if significant
+                  if (item.peakWaitTime && item.peakWaitTime > 20) {
+                    elements.push(`Skip the ~${Math.round(item.peakWaitTime)} minute waits during this peak period. `);
+                  } else {
+                    elements.push(`Great time to recharge while the park is busy. `);
+                  }
+
+                  // Add dining suggestion with bolded name
+                  if (item.diningName) {
+                    elements.push(
+                      <span key="dining">
+                        Try grabbing {mealType} at <strong>{item.diningName}</strong> or a nearby spot.{' '}
+                      </span>
+                    );
+                  } else if (isLunchOrDinner) {
+                    elements.push(`Grab ${mealType} at a nearby restaurant. `);
+                  }
+
+                  // Add shopping suggestion with bolded name if available
+                  if (item.shoppingName) {
+                    elements.push(
+                      <span key="shopping">
+                        While you're at it, check out <strong>{item.shoppingName}</strong> for some shopping.
+                      </span>
+                    );
+                  }
+
+                  return elements;
+                };
+
                 return (
                   <div key={idx} className="pw-timeline-item pw-break-block">
                     <div className="pw-timeline-time">{item.time}</div>
@@ -1553,9 +1686,7 @@ function TripReportView({
                       <div className="pw-break-header">
                         <div className="pw-break-title-row">
                           <span className="pw-break-icon">
-                            {item.name.toLowerCase().includes('lunch') || item.name.toLowerCase().includes('dinner')
-                              ? <Utensils size={18} />
-                              : <Coffee size={18} />}
+                            {isLunchOrDinner ? <Utensils size={18} /> : <Coffee size={18} />}
                           </span>
                           <div className="pw-break-title-content">
                             <span className="pw-break-name">{item.name}</span>
@@ -1565,38 +1696,7 @@ function TripReportView({
                         {item.land && <span className="pw-break-location"><MapPin size={12} /> {item.land}</span>}
                       </div>
 
-                      <div className="pw-break-suggestions">
-                        {item.diningName && (
-                          <div className="pw-break-suggestion pw-break-dining">
-                            {item.diningImage ? (
-                              <div className="pw-suggestion-image" style={{ backgroundImage: `url(${item.diningImage})` }} />
-                            ) : (
-                              <div className="pw-suggestion-image pw-suggestion-image-placeholder" />
-                            )}
-                            <div className="pw-suggestion-content">
-                              <span className="pw-suggestion-category">Dining</span>
-                              <span className="pw-suggestion-name">{item.diningName}</span>
-                              {item.diningDetail && <span className="pw-suggestion-detail">{item.diningDetail}</span>}
-                            </div>
-                          </div>
-                        )}
-                        {item.shoppingName && (
-                          <div className="pw-break-suggestion pw-break-shopping">
-                            {item.shoppingImage ? (
-                              <div className="pw-suggestion-image" style={{ backgroundImage: `url(${item.shoppingImage})` }} />
-                            ) : (
-                              <div className="pw-suggestion-image pw-suggestion-image-placeholder" />
-                            )}
-                            <div className="pw-suggestion-content">
-                              <span className="pw-suggestion-category">Shopping</span>
-                              <span className="pw-suggestion-name">{item.shoppingName}</span>
-                              {item.shoppingDetail && <span className="pw-suggestion-detail">{item.shoppingDetail}</span>}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-
-                      {item.notes && <p className="pw-break-reason">{item.notes}</p>}
+                      <p className="pw-break-description">{buildBreakSentence()}</p>
                     </div>
                   </div>
                 );
@@ -1618,6 +1718,46 @@ function TripReportView({
                         <span className="pw-entertainment-name">{item.name}</span>
                       </div>
                       {item.notes && <p className="pw-entertainment-notes">{item.notes}</p>}
+                    </div>
+                  </div>
+                );
+              }
+
+              // Render special headliner card for must-do attractions
+              if (isHeadliner) {
+                return (
+                  <div key={idx} className="pw-timeline-item pw-headliner-block">
+                    <div className="pw-timeline-time">{item.time}</div>
+                    <div className="pw-timeline-marker">
+                      <div className="pw-timeline-dot pw-headliner-dot">
+                        <Star size={10} />
+                      </div>
+                      {idx < currentDay.items.length - 1 && <div className="pw-timeline-line pw-headliner-line" />}
+                    </div>
+                    <div className="pw-headliner-wrapper">
+                      <div className="pw-headliner-card">
+                        <div
+                          className="pw-headliner-bg"
+                          style={{
+                            backgroundImage: `url(${getHeadlinerImage(item.name)})`,
+                          }}
+                        />
+                        <div className="pw-headliner-overlay" />
+                        <div className="pw-headliner-content">
+                          <div className="pw-headliner-badge">
+                            <Star size={12} />
+                            <span>Headliner</span>
+                          </div>
+                          <div className="pw-headliner-header">
+                            <span className="pw-headliner-name">{item.name}</span>
+                            {item.expectedWait !== undefined && item.expectedWait > 0 && (
+                              <span className="pw-headliner-wait">~{item.expectedWait} min wait</span>
+                            )}
+                          </div>
+                          {item.land && <span className="pw-headliner-land"><MapPin size={12} /> {item.land}</span>}
+                        </div>
+                      </div>
+                      {item.notes && <p className="pw-headliner-notes">{item.notes}</p>}
                     </div>
                   </div>
                 );
@@ -1904,6 +2044,24 @@ export default function PlanWizard() {
       })
       .catch(() => setLoading(false));
   }, []);
+
+  // Check for park pre-selection from URL parameter
+  useEffect(() => {
+    if (parks.length > 0 && !selectedPark) {
+      const urlParams = new URLSearchParams(window.location.search);
+      const parkIdParam = urlParams.get('park');
+      if (parkIdParam) {
+        const parkId = parseInt(parkIdParam, 10);
+        // Verify the park exists and supports park hopper
+        const parkExists = parks.some(p => p.id === parkId);
+        if (parkExists && supportsParkHopper(parkId)) {
+          setSelectedPark(parkId);
+          // Auto-advance to the next step
+          setStep('ticket-type');
+        }
+      }
+    }
+  }, [parks, selectedPark]);
 
   // Fetch rides when park is selected
   useEffect(() => {
@@ -2616,7 +2774,46 @@ export default function PlanWizard() {
             }
           }
 
-          const actualTransitionHour = optimalHopHour;
+          // ============================================================
+          // ENSURE ALL PARK 1 RIDES CAN COMPLETE BEFORE TRANSITION
+          // MVP: Once we switch parks, we don't go back. So we must
+          // finish ALL Park 1 rides before transitioning.
+          // ============================================================
+          const estimatePark1CompletionTime = (): number => {
+            const RIDE_DURATION = 10; // Average ride experience in minutes
+            const WALK_TIME = 8; // Average walk time between rides
+            let totalMinutes = 0;
+
+            for (let i = 0; i < park1Rides.length; i++) {
+              const ride = park1WithPreds[i];
+              // Get predicted wait at the estimated hour we'd be riding
+              const rideHour = Math.floor((parkOpenHour * 60 + totalMinutes) / 60);
+              const clampedHour = Math.min(Math.max(rideHour, 9), 21);
+              const predictedWait = getPredictedWaitForHour(ride.predictions, clampedHour);
+              totalMinutes += predictedWait + RIDE_DURATION + WALK_TIME;
+            }
+
+            // Convert to hour (with some buffer)
+            const completionMinutes = parkOpenHour * 60 + totalMinutes + 15; // 15 min buffer
+            return Math.ceil(completionMinutes / 60);
+          };
+
+          const minTransitionHourForPark1 = estimatePark1CompletionTime();
+
+          // The actual transition hour is the LATER of:
+          // 1. The wait-time-optimized hop hour
+          // 2. The minimum time needed to complete all Park 1 rides
+          let actualTransitionHour = Math.max(optimalHopHour, minTransitionHourForPark1);
+
+          // But don't exceed the max hop hour (need time for Park 2)
+          actualTransitionHour = Math.min(actualTransitionHour, maxHopHour);
+
+          // If we had to delay for Park 1 completion, add an insight
+          if (minTransitionHourForPark1 > optimalHopHour) {
+            dayInsights.push(
+              `Extended time at ${park1Name} to complete all selected rides before hopping`
+            );
+          }
 
           // Add insight about why we chose this hop time
           if (actualTransitionHour !== userTargetHour) {
@@ -2836,7 +3033,9 @@ export default function PlanWizard() {
           : 22 * 60;
 
         // Only add fill rides if user wants re-rides to fill their schedule
-        if (allowRerides && fillRides.length > 0) {
+        // Skip fill rides in park hopper mode - we already schedule all rides from both parks
+        // and don't want to suggest returning to the first park after transitioning
+        if (allowRerides && fillRides.length > 0 && !isParkHopper) {
           const lastItem = items[lastRideIndex];
           let currentTime = lastItem?.time || '4:00 PM';
           // Track the previous ride's wait for accurate timing
@@ -3201,7 +3400,8 @@ export default function PlanWizard() {
             land: lunchLand,
             isReride: false,
             breakDuration: LUNCH_DURATION,
-            diningName: lunchDining?.name || 'Nearby dining',
+            peakWaitTime: optimalLunch.avgWait,
+            diningName: lunchDining?.name,
             diningDetail: lunchDining?.specialty || 'Grab a bite to eat',
             diningImage: lunchDining?.image,
             shoppingName: lunchShopping?.name,
@@ -3237,7 +3437,8 @@ export default function PlanWizard() {
               land: dinnerLand,
               isReride: false,
               breakDuration: DINNER_DURATION,
-              diningName: dinnerDining?.name || 'Nearby dining',
+              peakWaitTime: optimalDinner.avgWait,
+              diningName: dinnerDining?.name,
               diningDetail: dinnerDining?.specialty || 'Enjoy a sit-down meal',
               diningImage: dinnerDining?.image,
               shoppingName: dinnerShopping?.name,

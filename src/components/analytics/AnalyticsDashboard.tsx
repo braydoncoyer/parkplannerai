@@ -105,7 +105,7 @@ function ParkComparisonChart({ parks }: { parks: Park[] }) {
       <h3>Current Wait Times by Park</h3>
       <ResponsiveContainer width="100%" height={300}>
         <BarChart data={chartData} margin={{ top: 20, right: 30, left: 0, bottom: 60 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+          <CartesianGrid strokeDasharray="3 3" stroke="#e2e0db" />
           <XAxis
             dataKey="name"
             tick={{ fontSize: 11, fill: '#64748b' }}
@@ -117,13 +117,13 @@ function ParkComparisonChart({ parks }: { parks: Park[] }) {
           <Tooltip
             contentStyle={{
               backgroundColor: 'white',
-              border: '1px solid #e2e8f0',
+              border: '1px solid #e2e0db',
               borderRadius: '8px',
               fontSize: '13px',
             }}
           />
-          <Bar dataKey="avgWait" name="Avg Wait" fill="#0284c7" radius={[4, 4, 0, 0]} />
-          <Bar dataKey="maxWait" name="Max Wait" fill="#0891b2" radius={[4, 4, 0, 0]} />
+          <Bar dataKey="avgWait" name="Avg Wait" fill="#c2410c" radius={[4, 4, 0, 0]} />
+          <Bar dataKey="maxWait" name="Max Wait" fill="#ea580c" radius={[4, 4, 0, 0]} />
         </BarChart>
       </ResponsiveContainer>
     </div>
@@ -142,13 +142,13 @@ function WeeklyTrendChart() {
       </p>
       <ResponsiveContainer width="100%" height={280}>
         <LineChart data={sampleWeeklyData} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+          <CartesianGrid strokeDasharray="3 3" stroke="#e2e0db" />
           <XAxis dataKey="day" tick={{ fontSize: 12, fill: '#64748b' }} />
           <YAxis tick={{ fontSize: 12, fill: '#64748b' }} />
           <Tooltip
             contentStyle={{
               backgroundColor: 'white',
-              border: '1px solid #e2e8f0',
+              border: '1px solid #e2e0db',
               borderRadius: '8px',
               fontSize: '13px',
             }}
@@ -158,17 +158,17 @@ function WeeklyTrendChart() {
             type="monotone"
             dataKey="disney"
             name="Disney Parks"
-            stroke="#1e40af"
+            stroke="#c2410c"
             strokeWidth={2}
-            dot={{ fill: '#1e40af', strokeWidth: 2 }}
+            dot={{ fill: '#c2410c', strokeWidth: 2 }}
           />
           <Line
             type="monotone"
             dataKey="universal"
             name="Universal Parks"
-            stroke="#15803d"
+            stroke="#65a30d"
             strokeWidth={2}
-            dot={{ fill: '#15803d', strokeWidth: 2 }}
+            dot={{ fill: '#65a30d', strokeWidth: 2 }}
           />
         </LineChart>
       </ResponsiveContainer>
@@ -188,13 +188,13 @@ function HourlyPatternChart() {
       </p>
       <ResponsiveContainer width="100%" height={280}>
         <BarChart data={sampleHourlyData} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+          <CartesianGrid strokeDasharray="3 3" stroke="#e2e0db" />
           <XAxis dataKey="hour" tick={{ fontSize: 11, fill: '#64748b' }} />
           <YAxis tick={{ fontSize: 12, fill: '#64748b' }} />
           <Tooltip
             contentStyle={{
               backgroundColor: 'white',
-              border: '1px solid #e2e8f0',
+              border: '1px solid #e2e0db',
               borderRadius: '8px',
               fontSize: '13px',
             }}
@@ -202,7 +202,7 @@ function HourlyPatternChart() {
           <Bar
             dataKey="wait"
             name="Avg Wait (min)"
-            fill="#0284c7"
+            fill="#c2410c"
             radius={[4, 4, 0, 0]}
           />
         </BarChart>
@@ -330,6 +330,7 @@ export default function AnalyticsDashboard() {
           </div>
         </div>
       </section>
+
     </div>
   );
 }

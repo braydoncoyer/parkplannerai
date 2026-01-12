@@ -31,6 +31,7 @@ export interface ParkHours {
   parkId: number;
   parkName: string;
   date: string;
+  timezone: string;
   openHour: number;
   openMinute: number;
   closeHour: number;
@@ -41,6 +42,26 @@ export interface ParkHours {
   extendedCloseHour?: number;
   extendedCloseMinute?: number;
 }
+
+/**
+ * Park timezone mapping
+ */
+export const PARK_TIMEZONES: Record<number, string> = {
+  // Walt Disney World (Orlando) - Eastern
+  5: 'America/New_York',
+  6: 'America/New_York',
+  7: 'America/New_York',
+  8: 'America/New_York',
+  // Universal Orlando - Eastern
+  64: 'America/New_York',
+  65: 'America/New_York',
+  334: 'America/New_York',
+  // Disneyland Resort (Anaheim) - Pacific
+  16: 'America/Los_Angeles',
+  17: 'America/Los_Angeles',
+  // Universal Hollywood - Pacific
+  66: 'America/Los_Angeles',
+};
 
 interface ThemeParksScheduleResponse {
   schedule: ParkSchedule[];
@@ -141,6 +162,7 @@ export async function fetchParkSchedule(
       parkId: queueTimesId,
       parkName: getParkName(queueTimesId),
       date: dateToFind,
+      timezone: PARK_TIMEZONES[queueTimesId] || 'America/New_York',
       openHour: openTime.hour,
       openMinute: openTime.minute,
       closeHour: closeTime.hour,
@@ -199,6 +221,7 @@ export function getDefaultParkHours(queueTimesId: number): ParkHours {
     parkId: queueTimesId,
     parkName: getParkName(queueTimesId),
     date: new Date().toISOString().split('T')[0],
+    timezone: PARK_TIMEZONES[queueTimesId] || 'America/New_York',
     openHour: 9,
     openMinute: 0,
     closeHour: isDisney ? 21 : 22, // Disney typically 9 PM, Universal 10 PM

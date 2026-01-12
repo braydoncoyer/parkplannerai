@@ -1,7 +1,9 @@
 ---
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import Header from '../../components/layout/Header.astro';
-import RideList from '../../components/park-detail/RideList';
+import ParkDetailPage from '../../components/park-detail/ParkDetailPage';
+
+export const prerender = false;
 
 const { id } = Astro.params;
 
@@ -25,102 +27,19 @@ for (const group of parksData) {
 
 <BaseLayout title={`${parkName} | Live Wait Times`}>
   <Header />
-  <main class="park-detail">
-    <div class="container">
-      <div class="park-header">
-        <a href="/" class="back-link">
-          ← Back to Dashboard
-        </a>
-        <div class="park-title-section">
-          <span class={`operator-badge ${parkOperator.toLowerCase()}`}>
-            {parkOperator}
-          </span>
-          <h1>{parkName}</h1>
-        </div>
-      </div>
-
-      <RideList parkId={id!} parkName={parkName} client:load />
-    </div>
+  <main>
+    <ParkDetailPage
+      parkId={id!}
+      parkName={parkName}
+      operator={parkOperator}
+      client:load
+    />
   </main>
 </BaseLayout>
 
-<style>
-  @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap');
-
-  .park-detail {
-    background-color: #fafbfc;
-    min-height: calc(100vh - 64px);
-  }
-
-  .container {
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 24px;
-  }
-
-  .park-header {
-    margin-bottom: 24px;
-  }
-
-  .back-link {
-    display: inline-flex;
-    align-items: center;
-    font-family: 'Outfit', sans-serif;
-    font-size: 14px;
-    font-weight: 500;
-    color: #64748b;
-    text-decoration: none;
-    margin-bottom: 16px;
-    transition: color 0.2s ease;
-  }
-
-  .back-link:hover {
-    color: #0284c7;
-  }
-
-  .park-title-section {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    flex-wrap: wrap;
-  }
-
-  .operator-badge {
-    font-family: 'Outfit', sans-serif;
-    font-size: 12px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    padding: 6px 14px;
-    border-radius: 20px;
-  }
-
-  .operator-badge.disney {
-    background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);
-    color: white;
-  }
-
-  .operator-badge.universal {
-    background: linear-gradient(135deg, #15803d 0%, #22c55e 100%);
-    color: white;
-  }
-
-  h1 {
-    font-family: 'Outfit', sans-serif;
-    font-size: 32px;
-    font-weight: 700;
-    color: #1e293b;
-    margin: 0;
-    letter-spacing: -0.5px;
-  }
-
-  @media (max-width: 600px) {
-    .container {
-      padding: 16px;
-    }
-
-    h1 {
-      font-size: 24px;
-    }
+<style is:global>
+  /* Reset any conflicting styles from old park detail page */
+  main {
+    background: transparent;
   }
 </style>
