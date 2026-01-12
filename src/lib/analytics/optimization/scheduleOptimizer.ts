@@ -35,6 +35,7 @@ import {
   getRopeDropWaitEstimate,
   type RopeDropTarget,
 } from '../data/ropeDropStrategy';
+import { getAdjustedWeight } from '../data/rideWeights';
 
 const WALK_TIME_BETWEEN_RIDES = 10; // minutes
 const ROPE_DROP_WINDOW_HOURS = 2; // First 2 hours for rope drop optimization
@@ -70,6 +71,7 @@ function minutesToTimeString(minutes: number): string {
 
 /**
  * Add special wording for first and last rides of the day
+ * Skips "Kick off your day" for rope drop targets since they already have special messaging
  */
 function enhanceFirstLastRideReasoning(schedule: ScheduleItem[]): ScheduleItem[] {
   const rideItems = schedule.filter(item => item.type === 'ride');
@@ -82,6 +84,10 @@ function enhanceFirstLastRideReasoning(schedule: ScheduleItem[]): ScheduleItem[]
     if (item.type !== 'ride') return item;
 
     if (item === firstRide) {
+      // Skip "Kick off your day" if this is already a rope drop priority (has 🎯)
+      if (item.reasoning?.includes('🎯')) {
+        return item;
+      }
       return {
         ...item,
         reasoning: `🌅 Kick off your day with this ride! ${item.reasoning}`,
@@ -217,8 +223,10 @@ export function optimizeSchedule(input: OptimizationInput): OptimizedSchedule {
     preferences.ropeDropTarget
   );
 
-  // Post-process: Add special wording for first and last rides
-  schedule = enhanceFirstLastRideReasoning(schedule);
+  // Post-process: Add special wording for first and last rides (skip for park hopper sub-schedules)
+  if (!preferences.skipFirstLastEnhancement) {
+    schedule = enhanceFirstLastRideReasoning(schedule);
+  }
 
   // Post-process: Detect large gaps and add exploration/rest suggestions
   schedule = addGapFillSuggestions(schedule);
@@ -319,7 +327,8 @@ function buildSchedule(
 ): ScheduleItem[] {
   const schedule: ScheduleItem[] = [];
   const scheduledRideIds = new Set<string | number>();
-  const deferredRides = new Set<string | number>(); // Track rides we're waiting on
+  const deferredRides = new Set<string | number>(); // Track rides we're waiting on for better times
+  const unschedulableRides = new Set<string | number>(); // Track rides that can't fit in remaining time
 
   let currentHour = arrivalHour;
   let currentMinute = 0;
@@ -345,9 +354,9 @@ function buildSchedule(
   }
 
   while (currentHour < departureHour && scheduledRideIds.size < rides.length) {
-    // Get remaining rides (including previously deferred ones that might be optimal now)
+    // Get remaining rides (excluding scheduled and unschedulable, but including deferred for re-check)
     const remainingRides = prioritizedRides.filter(
-      (r) => !scheduledRideIds.has(r.id)
+      (r) => !scheduledRideIds.has(r.id) && !unschedulableRides.has(r.id)
     );
 
     if (remainingRides.length === 0) break;
@@ -430,8 +439,11 @@ function buildSchedule(
 
     if (isInRopeDropWindow && ropeDropTarget && schedule.length === 0) {
       // First ride of the day during rope drop - use user's selected target
+      // Search in ALL remaining rides, not just candidateRides, because the target
+      // may have been filtered out by the "should defer" logic, but the user's
+      // explicit rope drop choice should override deferral decisions
       const userTargetNormalized = ropeDropTarget.toLowerCase();
-      bestRide = candidateRides.find(ride => {
+      bestRide = remainingRides.find(ride => {
         const rideName = ride.name.toLowerCase();
         return rideName === userTargetNormalized ||
                rideName.includes(userTargetNormalized) ||
@@ -461,15 +473,30 @@ function buildSchedule(
 
     if (isInRopeDropWindow && parkId) {
       const ropeDropTargetData = isRopeDropTarget(bestRide.name, parkId);
-      if (ropeDropTargetData) {
+
+      // Check if this is the user's selected rope drop target
+      const isUserSelectedTarget = ropeDropTarget && (() => {
+        const userTargetNormalized = ropeDropTarget.toLowerCase();
+        const rideName = bestRide.name.toLowerCase();
+        return rideName === userTargetNormalized ||
+               rideName.includes(userTargetNormalized) ||
+               userTargetNormalized.includes(rideName);
+      })();
+
+      if (isUserSelectedTarget && ropeDropTargetData) {
+        // This is the user's chosen rope drop target - show special messaging
         predictedWait = ropeDropTargetData.typicalRopeDropWait;
         const savings = ropeDropTargetData.typicalMiddayWait - ropeDropTargetData.typicalRopeDropWait;
-        reasoning = `🎯 Rope drop target! Save ~${savings} min vs midday. ${ropeDropTargetData.notes || ''}`.trim();
+        reasoning = `🎯 Your rope drop priority! Hitting this first saves ~${savings} min vs midday.`;
+      } else if (ropeDropTargetData) {
+        // Known rope drop target but not selected by user - use rope drop wait estimate but standard reasoning
+        predictedWait = ropeDropTargetData.typicalRopeDropWait;
+        // Keep the original reasoning, no rope drop mention
       } else {
         // Non-target ride, estimate 40% of normal wait at rope drop
         const normalWait = getPredictedWaitForHour(bestRide, currentHour);
         predictedWait = getRopeDropWaitEstimate(bestRide.name, parkId, normalWait);
-        reasoning = `Low crowd window. ${reasoning}`;
+        // Keep the original reasoning, no rope drop mention
       }
     } else {
       predictedWait = getPredictedWaitForHour(bestRide, currentHour);
@@ -490,8 +517,10 @@ function buildSchedule(
     const rideEndMinutes = rideEndTime.hour * 60 + rideEndTime.minute;
 
     if (rideEndMinutes > departureMinutes) {
-      // This ride would extend past park closing - stop scheduling
-      break;
+      // This ride doesn't fit - mark it as unschedulable and try others
+      // Don't break entirely - there may be other rides with shorter waits that fit
+      unschedulableRides.add(bestRide.id);
+      continue;
     }
 
     // Check if this ride was previously considered for deferral
@@ -811,15 +840,12 @@ function prioritizeRidesForRopeDrop(
       return aOrder - bOrder;
     }
 
-    // Neither are rope drop targets - fall back to standard popularity
-    const priorityOrder: Record<string, number> = {
-      headliner: 4,
-      popular: 3,
-      moderate: 2,
-      low: 1,
-    };
+    // Neither are rope drop targets - fall back to ride weights
+    // Higher weight = higher priority (should come first)
+    const weightA = getAdjustedWeight(a.name, userPriority);
+    const weightB = getAdjustedWeight(b.name, userPriority);
 
-    return (priorityOrder[b.popularity] || 0) - (priorityOrder[a.popularity] || 0);
+    return weightB - weightA;
   });
 }
 

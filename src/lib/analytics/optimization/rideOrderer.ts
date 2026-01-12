@@ -7,6 +7,7 @@ import type {
   RideCategory,
 } from '../types';
 import { getPredictedWaitForHour } from '../prediction/waitTimePredictor';
+import { getRideWeight, getAdjustedWeight } from '../data/rideWeights';
 
 /**
  * Score a ride for a specific time slot using multi-factor scoring
@@ -14,6 +15,7 @@ import { getPredictedWaitForHour } from '../prediction/waitTimePredictor';
  * SCORING BREAKDOWN (optimized for efficiency):
  * - Wait Time Score: 0-150 (HIGHEST PRIORITY - lower wait = higher score)
  * - Proximity Score: 0-100 (HIGH PRIORITY - same land = big bonus, reduces walking)
+ * - Ride Weight Score: 0-60 (HIGH PRIORITY - must-do rides get big boost)
  * - Priority Score: 0-40 (headliners get boost at optimal times only)
  * - User Preference: -15 to +50 (matches user's priority: thrill/family/shows)
  * - Efficiency Score: 0-20 (quick rides with low waits)
@@ -74,6 +76,13 @@ export function scoreRideForSlot(
     }
   }
 
+  // RIDE WEIGHT SCORE (0-60)
+  // Use the ride weights data to prioritize must-do attractions
+  // Adjusts based on user priority preference
+  const adjustedWeight = getAdjustedWeight(ride.name, userPriority);
+  // Scale weight (1-100) to score (0-60)
+  const rideWeightScore = Math.round((adjustedWeight / 100) * 60);
+
   // PRIORITY SCORE (0-40)
   // Headliners get boost, but only at optimal times
   let priorityScore: number;
@@ -130,7 +139,7 @@ export function scoreRideForSlot(
   // VARIETY SCORE REMOVED - we don't sacrifice efficiency for variety
   const varietyScore = 0;
 
-  const totalScore = waitTimeScore + proximityScore + priorityScore + efficiencyScore + belowAverageBonus + preferenceBonus;
+  const totalScore = waitTimeScore + proximityScore + rideWeightScore + priorityScore + efficiencyScore + belowAverageBonus + preferenceBonus;
 
   return {
     ride,
@@ -142,6 +151,7 @@ export function scoreRideForSlot(
       varietyScore,
       efficiencyScore,
       proximityScore,
+      rideWeightScore,
     },
   };
 }
@@ -349,42 +359,21 @@ export function generateRideReasoning(
 }
 
 /**
- * Sort rides by their optimal scheduling priority
- * Headliners should be scheduled first (at their best times)
- * User preferences significantly influence the order
+ * Sort rides by their optimal scheduling priority using ride weights
+ * Uses the comprehensive ride weights database to prioritize must-do attractions
+ * User preferences adjust weights via getAdjustedWeight
  */
 export function prioritizeRides(
   rides: RideWithPredictions[],
   userPriority: 'thrill' | 'family' | 'shows' | 'balanced'
 ): RideWithPredictions[] {
   return [...rides].sort((a, b) => {
-    // Priority order: headliner > popular > moderate > low
-    const priorityOrder: Record<string, number> = {
-      headliner: 4,
-      popular: 3,
-      moderate: 2,
-      low: 1,
-    };
+    // Use adjusted weights which account for user priority
+    const weightA = getAdjustedWeight(a.name, userPriority);
+    const weightB = getAdjustedWeight(b.name, userPriority);
 
-    const aPriority = priorityOrder[a.popularity] || 0;
-    const bPriority = priorityOrder[b.popularity] || 0;
-
-    // User preference boost - significant impact on ordering
-    let aBoost = 0;
-    let bBoost = 0;
-
-    if (userPriority === 'thrill') {
-      if (a.category === 'thrill') aBoost = 2; // Strong boost
-      if (b.category === 'thrill') bBoost = 2;
-    } else if (userPriority === 'family') {
-      if (a.category === 'family' || a.category === 'kids') aBoost = 2;
-      if (b.category === 'family' || b.category === 'kids') bBoost = 2;
-    } else if (userPriority === 'shows') {
-      if (a.category === 'show') aBoost = 2;
-      if (b.category === 'show') bBoost = 2;
-    }
-
-    return (bPriority + bBoost) - (aPriority + aBoost);
+    // Higher weight = higher priority (should come first)
+    return weightB - weightA;
   });
 }
 
