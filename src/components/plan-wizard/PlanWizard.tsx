@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import {
   ChevronRight,
   ChevronLeft,
+  ChevronUp,
   Check,
   MapPin,
   Star,
@@ -26,6 +27,10 @@ import {
   Target,
   Timer,
   RefreshCw,
+  X,
+  Flame,
+  Droplets,
+  Flag,
 } from 'lucide-react';
 import './PlanWizard.css';
 import {
@@ -56,6 +61,7 @@ import {
   getDefaultEntertainment,
   formatShowTime,
   type ParkEntertainment,
+  type EntertainmentCategory,
 } from '../../lib/api/entertainment';
 import {
   getRopeDropStrategy,
@@ -179,6 +185,8 @@ interface ItineraryItem {
   shoppingName?: string;
   shoppingDetail?: string;
   shoppingImage?: string;
+  // Entertainment-specific fields
+  entertainmentCategory?: EntertainmentCategory;
 }
 
 interface SkippedRide {
@@ -221,7 +229,7 @@ interface SavedPlan {
   selectedRides: number[];
 }
 
-type Step = 'park' | 'ticket-type' | 'entertainment' | 'schedule-style' | 'dates' | 'rides' | 'report';
+type Step = 'park' | 'ticket-type' | 'schedule-style' | 'dates' | 'entertainment' | 'rides' | 'report';
 
 // ============================================================================
 // CONSTANTS
@@ -230,9 +238,9 @@ type Step = 'park' | 'ticket-type' | 'entertainment' | 'schedule-style' | 'dates
 const STEPS: { key: Step; label: string; icon: React.ReactNode }[] = [
   { key: 'park', label: 'Select Park', icon: <MapPin size={18} /> },
   { key: 'ticket-type', label: 'Ticket Type', icon: <Route size={18} /> },
-  { key: 'entertainment', label: 'Entertainment', icon: <Sparkles size={18} /> },
   { key: 'schedule-style', label: 'Schedule Style', icon: <RefreshCw size={18} /> },
   { key: 'dates', label: 'Choose Dates', icon: <Calendar size={18} /> },
+  { key: 'entertainment', label: 'Shows', icon: <Sparkles size={18} /> },
   { key: 'rides', label: 'Select Rides', icon: <Star size={18} /> },
   { key: 'report', label: 'Your Plan', icon: <Award size={18} /> },
 ];
@@ -642,10 +650,27 @@ function TicketTypeSelection({
 // ENTERTAINMENT PREFERENCE
 // ============================================================================
 
+interface LiveShowData {
+  name: string;
+  time: string;
+  timeFormatted: string;
+  isLive: boolean;
+}
+
+interface DateEntertainment {
+  date: Date;
+  dateFormatted: string;
+  fireworks: LiveShowData | null;
+  parade: LiveShowData | null;
+  loading: boolean;
+  error: boolean;
+}
+
 function EntertainmentPreference({
   selectedPark,
   secondParkId,
   isParkHopper,
+  selectedDates,
   wantFireworks,
   wantParade,
   onFireworksChange,
@@ -654,12 +679,16 @@ function EntertainmentPreference({
   selectedPark: number | null;
   secondParkId: number | null;
   isParkHopper: boolean;
+  selectedDates: SelectedDate[];
   wantFireworks: boolean;
   wantParade: boolean;
   onFireworksChange: (value: boolean) => void;
   onParadeChange: (value: boolean) => void;
 }) {
-  // Get entertainment support for selected parks
+  const [entertainmentByDate, setEntertainmentByDate] = useState<DateEntertainment[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Get entertainment support for selected parks (fallback info)
   const primarySupport = selectedPark ? PARK_ENTERTAINMENT_SUPPORT[selectedPark] : null;
   const secondarySupport = secondParkId ? PARK_ENTERTAINMENT_SUPPORT[secondParkId] : null;
 
@@ -667,30 +696,138 @@ function EntertainmentPreference({
   const anyFireworks = primarySupport?.hasFireworks || secondarySupport?.hasFireworks;
   const anyParade = primarySupport?.hasParade || secondarySupport?.hasParade;
 
-  // Get fireworks and parade names for display
-  const getFireworksNames = () => {
-    const names: string[] = [];
-    if (primarySupport?.fireworksName) names.push(primarySupport.fireworksName);
-    if (secondarySupport?.fireworksName) names.push(secondarySupport.fireworksName);
-    return names;
+  // Format time from ISO or HH:MM to readable format
+  const formatShowTime = (timeStr: string): string => {
+    let hours: number;
+    let minutes: number;
+
+    if (timeStr.includes('T')) {
+      const date = new Date(timeStr);
+      hours = date.getHours();
+      minutes = date.getMinutes();
+    } else {
+      const parts = timeStr.split(':');
+      hours = parseInt(parts[0]);
+      minutes = parseInt(parts[1]) || 0;
+    }
+
+    const period = hours >= 12 ? 'PM' : 'AM';
+    const displayHours = hours > 12 ? hours - 12 : hours === 0 ? 12 : hours;
+    return `${displayHours}:${minutes.toString().padStart(2, '0')} ${period}`;
   };
 
-  const getParadeNames = () => {
-    const names: string[] = [];
-    if (primarySupport?.paradeName) names.push(primarySupport.paradeName);
-    if (secondarySupport?.paradeName) names.push(secondarySupport.paradeName);
-    return names;
+  // Format date for display
+  const formatDateDisplay = (date: Date): string => {
+    return date.toLocaleDateString('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+    });
   };
 
-  const fireworksNames = getFireworksNames();
-  const paradeNames = getParadeNames();
+  // Fetch live entertainment data for all selected dates
+  useEffect(() => {
+    const fetchEntertainment = async () => {
+      if (!selectedPark || selectedDates.length === 0) {
+        setIsLoading(false);
+        return;
+      }
 
-  // If no entertainment is available, show a simple message
+      setIsLoading(true);
+
+      const results: DateEntertainment[] = await Promise.all(
+        selectedDates.map(async (sd) => {
+          const dateFormatted = formatDateDisplay(sd.date);
+
+          try {
+            // Fetch live data from API
+            const liveData = await fetchParkEntertainment(selectedPark, sd.date);
+            const defaultData = getDefaultEntertainment(selectedPark);
+
+            // Extract fireworks info
+            let fireworks: LiveShowData | null = null;
+            if (anyFireworks) {
+              const liveFireworks = liveData?.nighttimeSpectacular;
+              const defaultFireworks = defaultData?.nighttimeSpectacular;
+              const showData = liveFireworks || defaultFireworks;
+
+              if (showData) {
+                const showtime = showData.showTimes?.[0]?.startTime;
+                fireworks = {
+                  name: showData.name || primarySupport?.fireworksName || 'Nighttime Spectacular',
+                  time: showtime || '21:00',
+                  timeFormatted: showtime ? formatShowTime(showtime) : '~9:00 PM',
+                  isLive: !!liveFireworks?.showTimes?.[0]?.startTime,
+                };
+              }
+            }
+
+            // Extract parade info
+            let parade: LiveShowData | null = null;
+            if (anyParade) {
+              const liveParade = liveData?.parade;
+              const defaultParade = defaultData?.parade;
+              const showData = liveParade || defaultParade;
+
+              if (showData) {
+                const showtime = showData.showTimes?.[0]?.startTime;
+                parade = {
+                  name: showData.name || primarySupport?.paradeName || 'Parade',
+                  time: showtime || '17:30',
+                  timeFormatted: showtime ? formatShowTime(showtime) : '~5:30 PM',
+                  isLive: !!liveParade?.showTimes?.[0]?.startTime,
+                };
+              }
+            }
+
+            return {
+              date: sd.date,
+              dateFormatted,
+              fireworks,
+              parade,
+              loading: false,
+              error: false,
+            };
+          } catch (error) {
+            console.warn(`Failed to fetch entertainment for ${dateFormatted}:`, error);
+
+            // Return fallback data on error
+            const defaultData = getDefaultEntertainment(selectedPark);
+            return {
+              date: sd.date,
+              dateFormatted,
+              fireworks: anyFireworks ? {
+                name: primarySupport?.fireworksName || 'Nighttime Spectacular',
+                time: defaultData?.nighttimeSpectacular?.showTimes?.[0]?.startTime || '21:00',
+                timeFormatted: '~9:00 PM',
+                isLive: false,
+              } : null,
+              parade: anyParade ? {
+                name: primarySupport?.paradeName || 'Parade',
+                time: defaultData?.parade?.showTimes?.[0]?.startTime || '17:30',
+                timeFormatted: '~5:30 PM',
+                isLive: false,
+              } : null,
+              loading: false,
+              error: true,
+            };
+          }
+        })
+      );
+
+      setEntertainmentByDate(results);
+      setIsLoading(false);
+    };
+
+    fetchEntertainment();
+  }, [selectedPark, selectedDates, anyFireworks, anyParade, primarySupport]);
+
+  // If no entertainment is available at this park
   if (!anyFireworks && !anyParade) {
     return (
       <div className="pw-section">
         <div className="pw-section-header">
-          <h2>Entertainment</h2>
+          <h2>Shows & Entertainment</h2>
           <p>This park doesn't have scheduled fireworks or parades.</p>
         </div>
         <div className="pw-entertainment-none">
@@ -704,18 +841,46 @@ function EntertainmentPreference({
     );
   }
 
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="pw-section">
+        <div className="pw-section-header">
+          <h2>Shows & Entertainment</h2>
+          <p>Checking show schedules for your dates...</p>
+        </div>
+        <div className="pw-entertainment-loading">
+          <div className="pw-spinner" />
+          <p>Fetching live showtimes...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Check what's actually available across all dates
+  const hasAnyFireworks = entertainmentByDate.some(d => d.fireworks);
+  const hasAnyParade = entertainmentByDate.some(d => d.parade);
+  const hasLiveData = entertainmentByDate.some(d =>
+    (d.fireworks?.isLive) || (d.parade?.isLive)
+  );
+
   const noEntertainmentSelected = !wantFireworks && !wantParade;
+  const showMultipleDates = selectedDates.length > 1;
 
   return (
     <div className="pw-section">
       <div className="pw-section-header">
-        <h2>Entertainment Preferences</h2>
-        <p>Would you like to include fireworks or parades in your day?</p>
+        <h2>Shows & Entertainment</h2>
+        <p>
+          {hasLiveData
+            ? 'Here are the shows scheduled for your visit:'
+            : 'Select shows to include in your schedule:'}
+        </p>
       </div>
 
       <div className="pw-entertainment-options">
         {/* Fireworks Option */}
-        {anyFireworks && (
+        {hasAnyFireworks && (
           <button
             className={`pw-entertainment-card ${wantFireworks ? 'selected' : ''}`}
             onClick={() => onFireworksChange(!wantFireworks)}
@@ -725,15 +890,29 @@ function EntertainmentPreference({
             </div>
             <div className="pw-entertainment-content">
               <span className="pw-entertainment-title">Nighttime Spectacular</span>
-              <span className="pw-entertainment-desc">
-                {fireworksNames.length > 0
-                  ? fireworksNames.join(', ')
-                  : 'End the night with a spectacular show'}
-              </span>
+
+              {/* Show times for each date */}
+              <div className="pw-entertainment-showtimes">
+                {entertainmentByDate.map((dateEnt, idx) => (
+                  dateEnt.fireworks && (
+                    <div key={idx} className="pw-showtime-row">
+                      {showMultipleDates && (
+                        <span className="pw-showtime-date">{dateEnt.dateFormatted}:</span>
+                      )}
+                      <span className="pw-showtime-name">{dateEnt.fireworks.name}</span>
+                      <span className={`pw-showtime-time ${dateEnt.fireworks.isLive ? 'live' : ''}`}>
+                        {dateEnt.fireworks.timeFormatted}
+                        {dateEnt.fireworks.isLive && <span className="pw-live-badge">Live</span>}
+                      </span>
+                    </div>
+                  )
+                ))}
+              </div>
+
               <span className="pw-entertainment-note">
                 {wantFireworks
-                  ? '✓ Scheduled at the end of your night'
-                  : 'Typically ~30 min before park close'}
+                  ? '✓ Added to your schedule'
+                  : 'Tap to add to your plan'}
               </span>
             </div>
             <div className="pw-entertainment-check">
@@ -743,7 +922,7 @@ function EntertainmentPreference({
         )}
 
         {/* Parade Option */}
-        {anyParade && (
+        {hasAnyParade && (
           <button
             className={`pw-entertainment-card ${wantParade ? 'selected' : ''}`}
             onClick={() => onParadeChange(!wantParade)}
@@ -753,15 +932,29 @@ function EntertainmentPreference({
             </div>
             <div className="pw-entertainment-content">
               <span className="pw-entertainment-title">Parade</span>
-              <span className="pw-entertainment-desc">
-                {paradeNames.length > 0
-                  ? paradeNames.join(', ')
-                  : 'Don\'t miss the daily parade'}
-              </span>
+
+              {/* Show times for each date */}
+              <div className="pw-entertainment-showtimes">
+                {entertainmentByDate.map((dateEnt, idx) => (
+                  dateEnt.parade && (
+                    <div key={idx} className="pw-showtime-row">
+                      {showMultipleDates && (
+                        <span className="pw-showtime-date">{dateEnt.dateFormatted}:</span>
+                      )}
+                      <span className="pw-showtime-name">{dateEnt.parade.name}</span>
+                      <span className={`pw-showtime-time ${dateEnt.parade.isLive ? 'live' : ''}`}>
+                        {dateEnt.parade.timeFormatted}
+                        {dateEnt.parade.isLive && <span className="pw-live-badge">Live</span>}
+                      </span>
+                    </div>
+                  )
+                ))}
+              </div>
+
               <span className="pw-entertainment-note">
                 {wantParade
                   ? '✓ Added to your schedule'
-                  : 'Usually in the afternoon'}
+                  : 'Tap to add to your plan'}
               </span>
             </div>
             <div className="pw-entertainment-check">
@@ -1250,6 +1443,7 @@ function RideSelection({
   isNearLimit: boolean;
 }) {
   const [searchTerm, setSearchTerm] = useState('');
+  const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
 
   // Helper to check if a ride is a rope drop target
   const isRopeDropTarget = (rideName: string): boolean => {
@@ -1467,6 +1661,124 @@ function RideSelection({
                 <Coffee size={16} />
                 Include meal & rest breaks
               </label>
+            </div>
+          </div>
+        </div>
+
+        {/* Mobile Bottom Bar */}
+        <div className="pw-mobile-selection-bar">
+          <div className="pw-mobile-selection-count">
+            <div className={`pw-mobile-count-badge ${isAtLimit ? 'at-limit' : isNearLimit ? 'near-limit' : ''}`}>
+              {selectedRides.length}
+            </div>
+            <div className="pw-mobile-count-text">
+              <span className="pw-mobile-count-label">Rides Selected</span>
+              <span className="pw-mobile-count-remaining">
+                {isAtLimit ? 'Limit reached' : `${maxRideLimit - selectedRides.length} more available`}
+              </span>
+            </div>
+          </div>
+          <button
+            className={`pw-mobile-expand-btn ${mobileDrawerOpen ? 'expanded' : ''}`}
+            onClick={() => setMobileDrawerOpen(true)}
+          >
+            <ChevronUp size={18} />
+            <span>Options</span>
+          </button>
+        </div>
+
+        {/* Mobile Drawer */}
+        <div
+          className={`pw-mobile-drawer-overlay ${mobileDrawerOpen ? 'open' : ''}`}
+          onClick={() => setMobileDrawerOpen(false)}
+        />
+        <div className={`pw-mobile-drawer ${mobileDrawerOpen ? 'open' : ''}`}>
+          <div className="pw-mobile-drawer-handle" onClick={() => setMobileDrawerOpen(false)} />
+          <div className="pw-mobile-drawer-header">
+            <h3>Your Selection</h3>
+            <button
+              className="pw-mobile-drawer-close"
+              onClick={() => setMobileDrawerOpen(false)}
+            >
+              <X size={20} />
+            </button>
+          </div>
+          <div className="pw-mobile-drawer-content">
+            {/* Rides Counter Card */}
+            <div className={`pw-rides-counter-card ${isAtLimit ? 'at-limit' : isNearLimit ? 'near-limit' : ''}`}>
+              <div className="pw-rides-counter-header">
+                <Star size={18} />
+                <span>Rides Selected</span>
+              </div>
+              <div className="pw-rides-counter-display">
+                <span className="pw-rides-counter-current">{selectedRides.length}</span>
+                <span className="pw-rides-counter-separator">/</span>
+                <span className="pw-rides-counter-max">{maxRideLimit}</span>
+              </div>
+              <div className="pw-rides-counter-remaining">
+                {isAtLimit ? (
+                  <span className="pw-rides-limit-reached">
+                    <Zap size={14} />
+                    Limit reached
+                  </span>
+                ) : (
+                  <span>{maxRideLimit - selectedRides.length} more available</span>
+                )}
+              </div>
+              {isNearLimit && !isAtLimit && (
+                <div className="pw-rides-counter-hint">
+                  Choose your favorites!
+                </div>
+              )}
+              <p className="pw-rides-counter-note">
+                {isParkHopper
+                  ? "*Reduced limit because you're visiting two parks."
+                  : "*Based on average wait times and park hours."
+                }
+              </p>
+            </div>
+
+            {/* Preferences */}
+            <div className="pw-preferences-card">
+              <h4>Optimization Preferences</h4>
+              <div className="pw-pref-group">
+                <label>Experience Priority</label>
+                <div className="pw-pref-options">
+                  {[
+                    { value: 'balanced', label: 'Balanced Mix', icon: <Zap size={16} /> },
+                    { value: 'thrill', label: 'Thrill Seeker', icon: <Award size={16} /> },
+                    { value: 'family', label: 'Family Fun', icon: <Star size={16} /> },
+                    { value: 'shows', label: 'Shows First', icon: <Sparkles size={16} /> },
+                  ].map((opt) => (
+                    <button
+                      key={opt.value}
+                      className={`pw-pref-btn ${preferences.priority === opt.value ? 'active' : ''}`}
+                      onClick={() =>
+                        onPreferencesChange({
+                          ...preferences,
+                          priority: opt.value as PlanPreferences['priority'],
+                        })
+                      }
+                    >
+                      {opt.icon}
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="pw-pref-toggle">
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={preferences.includeBreaks}
+                    onChange={(e) =>
+                      onPreferencesChange({ ...preferences, includeBreaks: e.target.checked })
+                    }
+                  />
+                  <Coffee size={16} />
+                  Include meal & rest breaks
+                </label>
+              </div>
             </div>
           </div>
         </div>
@@ -1702,22 +2014,49 @@ function TripReportView({
                 );
               }
 
-              // Render special entertainment item (parades, fireworks)
+              // Render special entertainment item (parades, fireworks, water shows)
               if (item.type === 'entertainment') {
+                const category = item.entertainmentCategory || 'other';
+                const getCategoryIcon = () => {
+                  switch (category) {
+                    case 'fireworks': return <Flame size={20} />;
+                    case 'water-show': return <Droplets size={20} />;
+                    case 'parade': return <Flag size={20} />;
+                    default: return <Sparkles size={20} />;
+                  }
+                };
+                const getCategoryLabel = () => {
+                  switch (category) {
+                    case 'fireworks': return 'Fireworks Show';
+                    case 'water-show': return 'Water Spectacular';
+                    case 'parade': return 'Parade';
+                    case 'projection': return 'Light Show';
+                    default: return 'Entertainment';
+                  }
+                };
                 return (
-                  <div key={idx} className="pw-timeline-item pw-entertainment-block">
+                  <div key={idx} className={`pw-timeline-item pw-entertainment-block pw-entertainment-${category}`}>
                     <div className="pw-timeline-time">{item.time}</div>
                     <div className="pw-timeline-marker">
-                      <div className="pw-timeline-dot pw-entertainment-dot">
-                        <Sparkles size={10} />
+                      <div className={`pw-timeline-dot pw-entertainment-dot pw-entertainment-dot-${category}`}>
+                        <Sparkles size={12} />
                       </div>
                       {idx < currentDay.items.length - 1 && <div className="pw-timeline-line pw-entertainment-line" />}
                     </div>
-                    <div className="pw-entertainment-card">
-                      <div className="pw-entertainment-header">
-                        <span className="pw-entertainment-name">{item.name}</span>
+                    <div className={`pw-entertainment-card pw-entertainment-card-${category}`}>
+                      <div className="pw-entertainment-card-inner">
+                        <div className="pw-entertainment-icon-wrapper">
+                          {getCategoryIcon()}
+                        </div>
+                        <div className="pw-entertainment-content">
+                          <span className="pw-entertainment-badge">{getCategoryLabel()}</span>
+                          <h4 className="pw-entertainment-name">{item.name}</h4>
+                          {item.notes && <p className="pw-entertainment-notes">{item.notes}</p>}
+                        </div>
                       </div>
-                      {item.notes && <p className="pw-entertainment-notes">{item.notes}</p>}
+                      <div className="pw-entertainment-sparkles">
+                        <span></span><span></span><span></span>
+                      </div>
                     </div>
                   </div>
                 );
@@ -2275,10 +2614,30 @@ export default function PlanWizard() {
     return [...taggedPrimaryRides, ...taggedSecondaryRides];
   }, [rides, secondParkRides, isParkHopper, selectedPark, secondParkId]);
 
-  const generateReport = () => {
+  const generateReport = async () => {
     const sortedDates = [...selectedDates].sort(
       (a, b) => a.date.getTime() - b.date.getTime()
     );
+
+    // Fetch live entertainment data for all selected dates
+    // This gets real showtimes from the ThemeParks.wiki API
+    const entertainmentByDate: Record<string, ParkEntertainment | null> = {};
+
+    // Fetch entertainment for primary park
+    if (selectedPark && (wantFireworks || wantParade)) {
+      const uniqueDates = [...new Set(sortedDates.map(sd => sd.date.toISOString().split('T')[0]))];
+
+      await Promise.all(uniqueDates.map(async (dateStr) => {
+        const targetDate = new Date(dateStr);
+        try {
+          const entertainment = await fetchParkEntertainment(selectedPark, targetDate);
+          entertainmentByDate[dateStr] = entertainment;
+        } catch (error) {
+          console.warn(`Failed to fetch entertainment for ${dateStr}:`, error);
+          entertainmentByDate[dateStr] = null;
+        }
+      }));
+    }
 
     // Use combinedRides for park hopper support
     const selectedRideObjects = combinedRides
@@ -3410,11 +3769,51 @@ export default function PlanWizard() {
           }, lunchPosition, LUNCH_DURATION);
 
           // DINNER BREAK - Only for full-day visits, dynamic within 5:00 PM - 7:00 PM window
+          // Adjust dinner time if entertainment (parade) conflicts with the window
           if (sd.duration === 'full-day') {
-            const DINNER_WINDOW_START = 17 * 60; // 5:00 PM in minutes
-            const DINNER_WINDOW_END = 19 * 60;   // 7:00 PM in minutes
-            const DINNER_DEFAULT = 17 * 60 + 30; // 5:30 PM default
+            let DINNER_WINDOW_START = 17 * 60; // 5:00 PM in minutes
+            let DINNER_WINDOW_END = 19 * 60;   // 7:00 PM in minutes
+            let DINNER_DEFAULT = 17 * 60 + 30; // 5:30 PM default
             const DINNER_DURATION = 60;          // 60 min dinner
+
+            // Check if parade conflicts with dinner window and adjust accordingly
+            if (wantParade) {
+              const liveEntertainment = entertainmentByDate[dateKey];
+              const defaultEntertainment = selectedPark ? getDefaultEntertainment(selectedPark) : null;
+              const paradeData = liveEntertainment?.parade || defaultEntertainment?.parade;
+              const paradeShowtime = paradeData?.showTimes?.[0]?.startTime;
+
+              if (paradeShowtime) {
+                let paradeMinutes: number;
+                if (paradeShowtime.includes('T')) {
+                  const date = new Date(paradeShowtime);
+                  paradeMinutes = date.getHours() * 60 + date.getMinutes();
+                } else {
+                  const [h, m] = paradeShowtime.split(':').map(Number);
+                  paradeMinutes = h * 60 + (m || 0);
+                }
+
+                // If parade is during normal dinner window (5:00-7:00 PM), adjust dinner
+                // Parade typically needs ~30 min before + 20 min duration = 50 min buffer
+                const PARADE_BUFFER = 50;
+
+                if (paradeMinutes >= DINNER_WINDOW_START - 30 && paradeMinutes <= DINNER_WINDOW_END) {
+                  // Parade conflicts with dinner window - eat dinner BEFORE parade
+                  // Move dinner to 4:00-5:00 PM (early dinner before parade)
+                  if (paradeMinutes >= 17 * 60) {
+                    // Parade is 5 PM or later - eat early dinner at 4:00-4:30 PM
+                    DINNER_WINDOW_START = 16 * 60;     // 4:00 PM
+                    DINNER_WINDOW_END = paradeMinutes - PARADE_BUFFER;
+                    DINNER_DEFAULT = 16 * 60 + 15;    // 4:15 PM
+                  } else {
+                    // Parade is before 5 PM - eat late dinner after parade (6:30-7:30 PM)
+                    DINNER_WINDOW_START = paradeMinutes + 30; // After parade ends
+                    DINNER_WINDOW_END = 19 * 60 + 30;         // 7:30 PM
+                    DINNER_DEFAULT = Math.max(paradeMinutes + 45, 18 * 60 + 30); // 6:30 PM or later
+                  }
+                }
+              }
+            }
 
             // Re-run findOptimalBreakTime since items array has changed after lunch insertion
             const optimalDinner = findOptimalBreakTime(DINNER_WINDOW_START, DINNER_WINDOW_END, DINNER_DEFAULT, DINNER_DURATION);
@@ -3468,106 +3867,6 @@ export default function PlanWizard() {
           }
           return startMinutes + 30; // Default 30 min for other items
         };
-
-        // =============================================
-        // ADD ENTERTAINMENT (Fireworks, Parades)
-        // Insert nighttime spectaculars and parades based on schedule
-        // =============================================
-        if (selectedPark && sd.duration === 'full-day') {
-          // Try to get live entertainment data, fall back to defaults
-          const defaultEntertainment = getDefaultEntertainment(selectedPark);
-
-          // Add nighttime spectacular if available AND user wants it
-          if (wantFireworks && defaultEntertainment.nighttimeSpectacular) {
-            const show = defaultEntertainment.nighttimeSpectacular;
-            const showTime = show.showTimes?.[0]?.startTime;
-            if (showTime) {
-              // Parse the show time (could be ISO or just HH:MM)
-              let showHour: number;
-              let showMinute: number;
-              if (showTime.includes('T')) {
-                const date = new Date(showTime);
-                showHour = date.getHours();
-                showMinute = date.getMinutes();
-              } else {
-                const [h, m] = showTime.split(':').map(Number);
-                showHour = h;
-                showMinute = m || 0;
-              }
-              const showMinutes = showHour * 60 + showMinute;
-
-              // Only add if we'll be at the park at that time
-              const lastScheduledItem = items[items.length - 1];
-              const lastItemEnd = lastScheduledItem ? getItemEndTime(lastScheduledItem) : parseTimeToMinutes(sd.arrivalTime);
-
-              // Add if the show fits in our day (park still open)
-              if (showMinutes >= lastItemEnd - 30 && showMinutes < parkCloseMinutes) {
-                // Check if there's already something at this time
-                const conflictingItem = items.find(item => {
-                  const itemMinutes = parseTimeToMinutes(item.time);
-                  return Math.abs(itemMinutes - showMinutes) < 30;
-                });
-
-                if (!conflictingItem) {
-                  items.push({
-                    time: minutesToTimeString(showMinutes - 30), // Arrive 30 min early for good spot
-                    type: 'suggestion',
-                    name: `🎆 ${show.name}`,
-                    notes: `Must-see nighttime spectacular! Arrive early for a good viewing spot.`,
-                    isReride: false,
-                    suggestionType: 'show',
-                    breakDuration: 45, // 15 min early + 30 min show
-                  });
-                }
-              }
-            }
-          }
-
-          // Add parade if available AND user wants it
-          if (wantParade && defaultEntertainment.parade) {
-            const parade = defaultEntertainment.parade;
-            const paradeTime = parade.showTimes?.[0]?.startTime;
-            if (paradeTime) {
-              let paradeHour: number;
-              let paradeMinute: number;
-              if (paradeTime.includes('T')) {
-                const date = new Date(paradeTime);
-                paradeHour = date.getHours();
-                paradeMinute = date.getMinutes();
-              } else {
-                const [h, m] = paradeTime.split(':').map(Number);
-                paradeHour = h;
-                paradeMinute = m || 0;
-              }
-              const paradeMinutes = paradeHour * 60 + paradeMinute;
-
-              // Check if parade fits in our schedule
-              const arrivalMinutes = parseTimeToMinutes(sd.arrivalTime);
-              if (paradeMinutes >= arrivalMinutes && paradeMinutes < parkCloseMinutes) {
-                // Check for conflicts
-                const conflictingItem = items.find(item => {
-                  const itemMinutes = parseTimeToMinutes(item.time);
-                  return Math.abs(itemMinutes - paradeMinutes) < 20;
-                });
-
-                if (!conflictingItem) {
-                  items.push({
-                    time: minutesToTimeString(paradeMinutes - 15), // Arrive 15 min early
-                    type: 'suggestion',
-                    name: `🎭 ${parade.name}`,
-                    notes: `Classic Disney parade! Find a spot along the parade route about 15 minutes before.`,
-                    isReride: false,
-                    suggestionType: 'show',
-                    breakDuration: 30, // 15 min early + 15 min parade
-                  });
-                }
-              }
-            }
-          }
-
-          // Re-sort after adding entertainment
-          items.sort((a, b) => parseTimeToMinutes(a.time) - parseTimeToMinutes(b.time));
-        }
 
         // =============================================
         // FILL END-OF-DAY GAP
@@ -3676,67 +3975,155 @@ export default function PlanWizard() {
             }
           }
 
-          // ============================================================
-          // ADD ENTERTAINMENT (Parades and Fireworks if enabled)
-          // ============================================================
-
-          // Get entertainment support for the current park context
-          const currentParkId = isParkHopper && secondParkId ? secondParkId : selectedPark;
-          const entertainmentSupport = currentParkId ? PARK_ENTERTAINMENT_SUPPORT[currentParkId] : null;
-
-          // Add Parade (if enabled and supported) - typically around 3 PM
-          if (wantParade && entertainmentSupport?.hasParade && entertainmentSupport.paradeName) {
-            const paradeTimeMinutes = 15 * 60; // 3:00 PM default
-            // Make sure parade isn't past park close
-            if (paradeTimeMinutes < parkCloseMinutes - 30) {
-              items.push({
-                time: minutesToTimeString(paradeTimeMinutes),
-                type: 'entertainment',
-                name: `🎭 ${entertainmentSupport.paradeName}`,
-                notes: 'Find a good viewing spot 15-20 minutes early for the best experience!',
-                isReride: false,
-                expectedWait: 0,
-              });
-              dayInsights.push(`Parade: ${entertainmentSupport.paradeName} scheduled for 3:00 PM`);
-            }
-          }
-
-          // Add Fireworks/Nighttime Spectacular (if enabled and supported) - near park close
-          if (wantFireworks && entertainmentSupport?.hasFireworks && entertainmentSupport.fireworksName) {
-            // Typically 30-45 minutes before park close, but check park hours
-            const fireworksTimeMinutes = Math.max(parkCloseMinutes - 45, 20 * 60); // At least 8 PM
-            // Only add if it's reasonably close to evening
-            if (fireworksTimeMinutes >= 19 * 60) { // 7 PM or later
-              items.push({
-                time: minutesToTimeString(fireworksTimeMinutes),
-                type: 'entertainment',
-                name: `✨ ${entertainmentSupport.fireworksName}`,
-                notes: 'Arrive 30-45 minutes early for a prime viewing location. Main Street/Hub area usually has the best views!',
-                isReride: false,
-                expectedWait: 0,
-              });
-              dayInsights.push(`Nighttime Spectacular: ${entertainmentSupport.fireworksName} at ${minutesToTimeString(fireworksTimeMinutes)}`);
-            }
-          }
-
-          // Add final "Park Closes" marker if we have activities
-          if (items.length > 0 && gapMinutes > 30) {
-            // Don't add if we're already close to closing
-            const lastAddedItem = items[items.length - 1];
-            const lastAddedEnd = getItemEndTime(lastAddedItem);
-            if (parkCloseMinutes - lastAddedEnd > 15) {
-              items.push({
-                time: minutesToTimeString(parkCloseMinutes - 15),
-                type: 'suggestion',
-                name: 'Head Towards Exit',
-                notes: 'Park closes soon! Great time for last-minute photos and to beat the exit crowds.',
-                isReride: false,
-              });
-            }
-          }
-
-          // Re-sort after adding end-of-day activities
+          // Re-sort after adding re-rides and breaks
           items.sort((a, b) => parseTimeToMinutes(a.time) - parseTimeToMinutes(b.time));
+        }
+
+        // ============================================================
+        // ADD ENTERTAINMENT (Parades and Fireworks if enabled)
+        // Uses live API data when available, falls back to defaults
+        // ============================================================
+
+        // Get live entertainment data for this date, or fall back to defaults
+        const liveEntertainment = entertainmentByDate[dateKey];
+        const defaultEntertainment = selectedPark ? getDefaultEntertainment(selectedPark) : null;
+
+        // Get entertainment support for fallback names
+        const currentParkId = isParkHopper && secondParkId ? secondParkId : selectedPark;
+        const entertainmentSupport = currentParkId ? PARK_ENTERTAINMENT_SUPPORT[currentParkId] : null;
+
+        // Helper to parse showtime to minutes
+        const parseShowtimeToMinutes = (showtime: string): number => {
+          if (showtime.includes('T')) {
+            // ISO format: 2024-01-15T21:30:00
+            const date = new Date(showtime);
+            return date.getHours() * 60 + date.getMinutes();
+          } else {
+            // Simple format: 21:30 or 9:30 PM
+            const match = showtime.match(/(\d+):(\d+)\s*(AM|PM)?/i);
+            if (!match) return 0;
+            let hours = parseInt(match[1]);
+            const minutes = parseInt(match[2]);
+            if (match[3]) {
+              const period = match[3].toUpperCase();
+              if (period === 'PM' && hours !== 12) hours += 12;
+              if (period === 'AM' && hours === 12) hours = 0;
+            }
+            return hours * 60 + minutes;
+          }
+        };
+
+        const arrivalMinutes = parseTimeToMinutes(sd.arrivalTime);
+
+        // Add Parade (if enabled and supported) - ALWAYS prioritize user's entertainment selection
+        if (wantParade && entertainmentSupport?.hasParade) {
+          // Try to get live parade data, fall back to defaults
+          const paradeData = liveEntertainment?.parade || defaultEntertainment?.parade;
+          const paradeName = paradeData?.name || entertainmentSupport.paradeName || 'Parade';
+          const paradeShowtime = paradeData?.showTimes?.[0]?.startTime;
+
+          // Use live showtime if available, otherwise default to 5:30 PM
+          const paradeTimeMinutes = paradeShowtime
+            ? parseShowtimeToMinutes(paradeShowtime)
+            : 17 * 60 + 30; // 5:30 PM default
+
+          // Make sure parade fits in our schedule window
+          if (paradeTimeMinutes >= arrivalMinutes && paradeTimeMinutes < parkCloseMinutes - 30) {
+            // Remove any conflicting rides (within 30 min) - entertainment takes priority
+            const conflictWindow = 30;
+            for (let i = items.length - 1; i >= 0; i--) {
+              const item = items[i];
+              if (item.type === 'ride') {
+                const itemMinutes = parseTimeToMinutes(item.time);
+                if (Math.abs(itemMinutes - paradeTimeMinutes) < conflictWindow) {
+                  items.splice(i, 1);
+                }
+              }
+            }
+
+            const timeStr = minutesToTimeString(paradeTimeMinutes);
+            items.push({
+              time: timeStr,
+              type: 'entertainment',
+              name: paradeName,
+              notes: paradeShowtime
+                ? `Live showtime! Find a good viewing spot 15-20 minutes early.`
+                : 'Find a good viewing spot 15-20 minutes early for the best experience!',
+              isReride: false,
+              expectedWait: 0,
+              entertainmentCategory: 'parade',
+            });
+            dayInsights.push(`Parade: ${paradeName} at ${timeStr}${paradeShowtime ? ' (live schedule)' : ''}`);
+          }
+        }
+
+        // Add Fireworks/Nighttime Spectacular (if enabled and supported) - ALWAYS prioritize
+        if (wantFireworks && entertainmentSupport?.hasFireworks) {
+          // Try to get live fireworks data, fall back to defaults
+          const fireworksData = liveEntertainment?.nighttimeSpectacular || defaultEntertainment?.nighttimeSpectacular;
+          const fireworksName = fireworksData?.name || entertainmentSupport.fireworksName || 'Nighttime Spectacular';
+          const fireworksShowtime = fireworksData?.showTimes?.[0]?.startTime;
+
+          // Use live showtime if available, otherwise estimate based on park close
+          const fireworksTimeMinutes = fireworksShowtime
+            ? parseShowtimeToMinutes(fireworksShowtime)
+            : Math.max(parkCloseMinutes - 45, 20 * 60); // At least 8 PM
+
+          // Add if it's in the evening and we'll be there
+          if (fireworksTimeMinutes >= arrivalMinutes) {
+            // Remove any conflicting rides (within 30 min) - entertainment takes priority
+            const conflictWindow = 30;
+            for (let i = items.length - 1; i >= 0; i--) {
+              const item = items[i];
+              if (item.type === 'ride') {
+                const itemMinutes = parseTimeToMinutes(item.time);
+                if (Math.abs(itemMinutes - fireworksTimeMinutes) < conflictWindow) {
+                  items.splice(i, 1);
+                }
+              }
+            }
+
+            const timeStr = minutesToTimeString(fireworksTimeMinutes);
+            // Determine the category - use data if available, otherwise infer from name
+            const entertainmentCategory: EntertainmentCategory = fireworksData?.category ||
+              (fireworksName.toLowerCase().includes('fantasmic') || fireworksName.toLowerCase().includes('world of color')
+                ? 'water-show'
+                : 'fireworks');
+            items.push({
+              time: timeStr,
+              type: 'entertainment',
+              name: fireworksName,
+              notes: fireworksShowtime
+                ? `Live showtime! Arrive 30-45 minutes early for a prime viewing spot.`
+                : 'Arrive 30-45 minutes early for a prime viewing location. Main Street/Hub area usually has the best views!',
+              isReride: false,
+              expectedWait: 0,
+              entertainmentCategory,
+            });
+            dayInsights.push(`Nighttime Spectacular: ${fireworksName} at ${timeStr}${fireworksShowtime ? ' (live schedule)' : ''}`);
+          }
+        }
+
+        // Re-sort after adding entertainment
+        items.sort((a, b) => parseTimeToMinutes(a.time) - parseTimeToMinutes(b.time));
+
+        // Recalculate gap after all additions
+        const finalLastItem = items[items.length - 1];
+        const finalLastItemEnd = finalLastItem ? getItemEndTime(finalLastItem) : parseTimeToMinutes(sd.arrivalTime);
+        const finalGapMinutes = parkCloseMinutes - finalLastItemEnd;
+
+        // Add final "Park Closes" marker if we have activities and time
+        if (items.length > 0 && finalGapMinutes > 30) {
+          // Don't add if we're already close to closing
+          if (parkCloseMinutes - finalLastItemEnd > 15) {
+            items.push({
+              time: minutesToTimeString(parkCloseMinutes - 15),
+              type: 'suggestion',
+              name: 'Head Towards Exit',
+              notes: 'Park closes soon! Great time for last-minute photos and to beat the exit crowds.',
+              isReride: false,
+            });
+          }
         }
 
         // SAFETY FILTER: Remove any rides that START after park close
@@ -4002,15 +4389,16 @@ export default function PlanWizard() {
       return;
     }
     else if (step === 'ticket-type') {
-      setStep('entertainment');
-    }
-    else if (step === 'entertainment') {
       setStep('schedule-style');
     }
     else if (step === 'schedule-style') {
       setStep('dates');
     }
     else if (step === 'dates') {
+      // Move to entertainment step to show available shows for selected dates
+      setStep('entertainment');
+    }
+    else if (step === 'entertainment') {
       // Auto-select rope drop target rides when moving to ride selection
       const ropeDropTargetNames = selectedDates
         .filter(sd => sd.ropeDropTarget)
@@ -4043,7 +4431,7 @@ export default function PlanWizard() {
 
   const prevStep = () => {
     if (step === 'ticket-type') setStep('park');
-    else if (step === 'entertainment') {
+    else if (step === 'schedule-style') {
       // Go back to ticket-type if it's a Disney park, otherwise park
       if (selectedPark && supportsParkHopper(selectedPark)) {
         setStep('ticket-type');
@@ -4051,9 +4439,9 @@ export default function PlanWizard() {
         setStep('park');
       }
     }
-    else if (step === 'schedule-style') setStep('entertainment');
     else if (step === 'dates') setStep('schedule-style');
-    else if (step === 'rides') setStep('dates');
+    else if (step === 'entertainment') setStep('dates');
+    else if (step === 'rides') setStep('entertainment');
     else if (step === 'report') setStep('rides');
   };
 
@@ -4086,10 +4474,10 @@ export default function PlanWizard() {
                 if (supportsParkHopper(parkId)) {
                   setStep('ticket-type');
                 } else {
-                  // Non-Disney parks skip ticket-type, go to entertainment
+                  // Non-Disney parks skip ticket-type, go to schedule-style
                   setIsParkHopper(false);
                   setSecondParkId(null);
-                  setStep('entertainment');
+                  setStep('schedule-style');
                 }
               }}
             />
@@ -4134,6 +4522,7 @@ export default function PlanWizard() {
             selectedPark={selectedPark}
             secondParkId={secondParkId}
             isParkHopper={isParkHopper}
+            selectedDates={selectedDates}
             wantFireworks={wantFireworks}
             wantParade={wantParade}
             onFireworksChange={setWantFireworks}

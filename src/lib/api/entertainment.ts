@@ -9,6 +9,15 @@ export interface ShowTime {
   type: 'Performance' | 'Operating';
 }
 
+export type EntertainmentCategory =
+  | 'fireworks'      // Pyrotechnic shows (Happily Ever After, Wondrous Journeys)
+  | 'water-show'     // Water/projection shows (World of Color, Fantasmic!)
+  | 'parade'         // Parades (Magic Happens, Festival of Fantasy)
+  | 'projection'     // Castle projections, light shows
+  | 'stage-show'     // Stage performances
+  | 'character'      // Character experiences, cavalcades
+  | 'other';         // Other entertainment
+
 export interface Entertainment {
   id: string;
   name: string;
@@ -18,6 +27,7 @@ export interface Entertainment {
   isNighttime: boolean;
   isParade: boolean;
   isFireworks: boolean;
+  category: EntertainmentCategory;
   priority: 'must-see' | 'recommended' | 'optional';
 }
 
@@ -30,24 +40,88 @@ export interface ParkEntertainment {
   parade: Entertainment | null;
 }
 
-// Keywords to identify nighttime spectaculars
-const NIGHTTIME_KEYWORDS = [
-  'fireworks', 'happily ever after', 'luminous', 'harmonious',
-  'fantasmic', 'world of color', 'illuminations', 'epcot forever',
-  'starlight', 'enchantment', 'cinematic celebration'
+// Keywords to identify fireworks shows (pyrotechnic)
+const FIREWORKS_KEYWORDS = [
+  'fireworks', 'happily ever after', 'luminous', 'wondrous journeys',
+  'enchantment', 'harmonious', 'epcot forever', 'illuminations',
+  'remember... dreams come true', 'wishes'
+];
+
+// Keywords to identify water/projection shows
+const WATER_SHOW_KEYWORDS = [
+  'world of color', 'fantasmic', 'rivers of light', 'fountains'
 ];
 
 // Keywords to identify parades
 const PARADE_KEYWORDS = [
-  'parade', 'cavalcade', 'festival of fantasy', 'magic happens',
-  'boo to you', 'once upon a christmastime', 'electrical parade'
+  'parade', 'festival of fantasy', 'magic happens',
+  'boo to you', 'once upon a christmastime', 'electrical parade',
+  'main street electrical', 'paint the night', 'spectromagic'
+];
+
+// Keywords to identify character experiences/cavalcades
+const CHARACTER_KEYWORDS = [
+  'cavalcade', 'character', 'meet', 'greeting'
+];
+
+// Keywords for general nighttime entertainment (catch-all)
+const NIGHTTIME_KEYWORDS = [
+  ...FIREWORKS_KEYWORDS,
+  ...WATER_SHOW_KEYWORDS,
+  'starlight', 'cinematic celebration', 'nighttime'
 ];
 
 // Must-see entertainment by name (case-insensitive partial match)
 const MUST_SEE_ENTERTAINMENT = [
   'fantasmic', 'world of color', 'happily ever after', 'luminous',
-  'festival of fantasy', 'magic happens', 'cinematic celebration'
+  'wondrous journeys', 'festival of fantasy', 'magic happens',
+  'cinematic celebration', 'enchantment'
 ];
+
+/**
+ * Determine the category of entertainment
+ */
+function getEntertainmentCategory(name: string, showTimes: ShowTime[]): EntertainmentCategory {
+  const lowerName = name.toLowerCase();
+
+  // Check for parades first (most specific)
+  if (PARADE_KEYWORDS.some(keyword => lowerName.includes(keyword))) {
+    return 'parade';
+  }
+
+  // Check for fireworks
+  if (FIREWORKS_KEYWORDS.some(keyword => lowerName.includes(keyword))) {
+    return 'fireworks';
+  }
+
+  // Check for water shows
+  if (WATER_SHOW_KEYWORDS.some(keyword => lowerName.includes(keyword))) {
+    return 'water-show';
+  }
+
+  // Check for character experiences
+  if (CHARACTER_KEYWORDS.some(keyword => lowerName.includes(keyword))) {
+    return 'character';
+  }
+
+  // Check if it's a nighttime show based on time
+  if (showTimes.length > 0) {
+    const allEvening = showTimes.every(st => {
+      const hour = new Date(st.startTime).getHours();
+      return hour >= 19; // 7 PM or later
+    });
+    if (allEvening) {
+      return 'projection'; // Evening show, likely projection/light show
+    }
+  }
+
+  // Check for stage show keywords
+  if (lowerName.includes('show') || lowerName.includes('musical') || lowerName.includes('live')) {
+    return 'stage-show';
+  }
+
+  return 'other';
+}
 
 /**
  * Check if entertainment is a nighttime spectacular
@@ -170,6 +244,7 @@ export async function fetchParkEntertainment(
       const showTimes = parseShowTimes(relevantShowtimes);
       const isNighttime = isNighttimeShow(item.name, showTimes);
       const isParadeShow = isParade(item.name);
+      const category = getEntertainmentCategory(item.name, showTimes);
 
       const entertainment: Entertainment = {
         id: item.id,
@@ -179,9 +254,8 @@ export async function fetchParkEntertainment(
         showTimes,
         isNighttime,
         isParade: isParadeShow,
-        isFireworks: item.name.toLowerCase().includes('firework') ||
-                     item.name.toLowerCase().includes('happily ever after') ||
-                     item.name.toLowerCase().includes('luminous'),
+        isFireworks: category === 'fireworks',
+        category,
         priority: getEntertainmentPriority(item.name),
       };
 
@@ -243,12 +317,14 @@ export function getDefaultEntertainment(queueTimesId: number): Partial<ParkEnter
         name: 'Happily Ever After',
         isNighttime: true,
         isFireworks: true,
+        category: 'fireworks',
         priority: 'must-see',
         showTimes: [{ startTime: '21:00', type: 'Performance' }], // 9 PM typical
       },
       parade: {
         name: 'Festival of Fantasy Parade',
         isParade: true,
+        category: 'parade',
         priority: 'must-see',
         showTimes: [{ startTime: '15:00', type: 'Performance' }], // 3 PM typical
       },
@@ -259,6 +335,7 @@ export function getDefaultEntertainment(queueTimesId: number): Partial<ParkEnter
         name: 'Luminous',
         isNighttime: true,
         isFireworks: true,
+        category: 'fireworks',
         priority: 'must-see',
         showTimes: [{ startTime: '21:00', type: 'Performance' }],
       },
@@ -268,6 +345,8 @@ export function getDefaultEntertainment(queueTimesId: number): Partial<ParkEnter
       nighttime: {
         name: 'Fantasmic!',
         isNighttime: true,
+        isFireworks: false,
+        category: 'water-show',
         priority: 'must-see',
         showTimes: [{ startTime: '20:00', type: 'Performance' }, { startTime: '21:30', type: 'Performance' }],
       },
@@ -279,10 +358,19 @@ export function getDefaultEntertainment(queueTimesId: number): Partial<ParkEnter
     // Disneyland
     16: {
       nighttime: {
-        name: 'Fantasmic!',
+        name: 'Wondrous Journeys',
         isNighttime: true,
+        isFireworks: true,
+        category: 'fireworks',
         priority: 'must-see',
-        showTimes: [{ startTime: '21:00', type: 'Performance' }, { startTime: '22:30', type: 'Performance' }],
+        showTimes: [{ startTime: '21:30', type: 'Performance' }],
+      },
+      parade: {
+        name: 'Magic Happens Parade',
+        isParade: true,
+        category: 'parade',
+        priority: 'must-see',
+        showTimes: [{ startTime: '17:30', type: 'Performance' }], // 5:30 PM typical
       },
     },
     // DCA
@@ -290,6 +378,8 @@ export function getDefaultEntertainment(queueTimesId: number): Partial<ParkEnter
       nighttime: {
         name: 'World of Color',
         isNighttime: true,
+        isFireworks: false,
+        category: 'water-show',
         priority: 'must-see',
         showTimes: [{ startTime: '21:00', type: 'Performance' }],
       },
