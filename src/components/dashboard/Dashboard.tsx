@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Clock, Users, TrendingUp, MapPin, ChevronRight, RefreshCw } from 'lucide-react';
+import { Clock, TrendingUp, MapPin, ChevronRight, RefreshCw, Moon } from 'lucide-react';
 import './Dashboard.css';
+import parkImagesData from '../../lib/analytics/data/parkImages.json';
 
 interface ParkStats {
   avgWaitTime: number;
@@ -17,6 +18,11 @@ interface Park {
   country: string;
   stats: ParkStats;
   lastUpdated: string;
+  isOpen: boolean;
+  hours: {
+    openingTime: string;
+    closingTime: string;
+  } | null;
 }
 
 interface ParksResponse {
@@ -31,23 +37,16 @@ interface ParksResponse {
 
 type FilterType = 'all' | 'disney' | 'universal';
 
-// Theme park images from Pexels (free to use, no attribution required)
-const PARK_IMAGES: Record<number, string> = {
-  // Walt Disney World
-  6: 'https://images.pexels.com/photos/8183994/pexels-photo-8183994.jpeg?auto=compress&cs=tinysrgb&w=800', // Magic Kingdom - Cinderella Castle
-  5: 'https://images.pexels.com/photos/3617464/pexels-photo-3617464.jpeg?auto=compress&cs=tinysrgb&w=800', // EPCOT - Spaceship Earth
-  8: 'https://images.pexels.com/photos/14243455/pexels-photo-14243455.jpeg?auto=compress&cs=tinysrgb&w=800', // Hollywood Studios - Tower of Terror
-  7: 'https://images.pexels.com/photos/3617464/pexels-photo-3617464.jpeg?auto=compress&cs=tinysrgb&w=800', // Animal Kingdom (using EPCOT as fallback)
-  // Disneyland Resort
-  16: 'https://images.pexels.com/photos/17892641/pexels-photo-17892641.jpeg?auto=compress&cs=tinysrgb&w=800', // Disneyland - Sleeping Beauty Castle
-  17: 'https://images.pexels.com/photos/17892641/pexels-photo-17892641.jpeg?auto=compress&cs=tinysrgb&w=800', // California Adventure (using Disneyland as fallback)
-  // Universal Orlando
-  64: 'https://images.pexels.com/photos/5246036/pexels-photo-5246036.jpeg?auto=compress&cs=tinysrgb&w=800', // Universal Studios FL - Globe
-  65: 'https://images.pexels.com/photos/9400905/pexels-photo-9400905.jpeg?auto=compress&cs=tinysrgb&w=800', // Islands of Adventure
-  66: 'https://images.pexels.com/photos/9400905/pexels-photo-9400905.jpeg?auto=compress&cs=tinysrgb&w=800', // Volcano Bay
-  // Universal Hollywood
-  68: 'https://images.pexels.com/photos/5246036/pexels-photo-5246036.jpeg?auto=compress&cs=tinysrgb&w=800', // Universal Hollywood - Globe
-};
+// Build a flat map of park ID to image URL from the JSON
+const PARK_IMAGES: Record<number, string> = {};
+for (const resortParks of Object.values(parkImagesData)) {
+  for (const [parkId, parkData] of Object.entries(resortParks)) {
+    const data = parkData as { name: string; image: string };
+    if (data.image) {
+      PARK_IMAGES[Number(parkId)] = data.image;
+    }
+  }
+}
 
 const DEFAULT_IMAGE = 'https://images.pexels.com/photos/8183994/pexels-photo-8183994.jpeg?auto=compress&cs=tinysrgb&w=800';
 
@@ -74,6 +73,7 @@ function formatTimeAgo(dateString: string): string {
 function ParkCard({ park }: { park: Park }) {
   const imageUrl = PARK_IMAGES[park.id] || DEFAULT_IMAGE;
   const crowdLabel = CROWD_LABELS[park.stats.crowdLevel];
+  const isClosed = !park.isOpen;
 
   return (
     <a href={`/parks/${park.id}`} className="park-card">
@@ -86,28 +86,41 @@ function ParkCard({ park }: { park: Park }) {
       <div className="park-card-content">
         <div className="park-card-header">
           <h3 className="park-name">{park.name}</h3>
-          <span className={`crowd-badge ${park.stats.crowdLevel}`}>
-            {crowdLabel}
-          </span>
+          {isClosed ? (
+            <span className="crowd-badge closed">
+              <Moon size={12} />
+              Closed
+            </span>
+          ) : (
+            <span className={`crowd-badge ${park.stats.crowdLevel}`}>
+              {crowdLabel}
+            </span>
+          )}
         </div>
 
-        <div className="park-stats">
-          <div className="stat">
-            <Clock size={16} />
-            <span className="stat-value">{park.stats.avgWaitTime}</span>
-            <span className="stat-label">avg</span>
+        {isClosed ? (
+          <div className="park-closed-message">
+            Park is currently closed
           </div>
-          <div className="stat">
-            <TrendingUp size={16} />
-            <span className="stat-value">{park.stats.maxWaitTime}</span>
-            <span className="stat-label">peak</span>
+        ) : (
+          <div className="park-stats">
+            <div className="stat">
+              <Clock size={16} />
+              <span className="stat-value">{park.stats.avgWaitTime}</span>
+              <span className="stat-label">avg</span>
+            </div>
+            <div className="stat">
+              <TrendingUp size={16} />
+              <span className="stat-value">{park.stats.maxWaitTime}</span>
+              <span className="stat-label">peak</span>
+            </div>
+            <div className="stat">
+              <MapPin size={16} />
+              <span className="stat-value">{park.stats.ridesOpen}</span>
+              <span className="stat-label">open</span>
+            </div>
           </div>
-          <div className="stat">
-            <MapPin size={16} />
-            <span className="stat-value">{park.stats.ridesOpen}</span>
-            <span className="stat-label">open</span>
-          </div>
-        </div>
+        )}
 
         <div className="park-card-footer">
           <span className="view-link">
@@ -224,11 +237,6 @@ export default function Dashboard() {
     universal: parks.filter((p) => p.operator.toLowerCase() === 'universal').length,
   };
 
-  // Find best park (lowest wait)
-  const bestPark = [...parks].sort(
-    (a, b) => a.stats.avgWaitTime - b.stats.avgWaitTime
-  )[0];
-
   return (
     <div className="dashboard">
       <div className="dashboard-header">
@@ -242,14 +250,6 @@ export default function Dashboard() {
             </button>
           </div>
         </div>
-
-        {bestPark && (
-          <div className="best-park-badge">
-            <span className="badge-label">Shortest waits</span>
-            <span className="badge-value">{bestPark.name.split(' ').slice(0, 2).join(' ')}</span>
-            <span className="badge-wait">{bestPark.stats.avgWaitTime} min avg</span>
-          </div>
-        )}
       </div>
 
       <div className="toolbar">

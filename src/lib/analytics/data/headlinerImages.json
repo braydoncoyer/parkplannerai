@@ -1,0 +1,74 @@
+{
+  "magicKingdom": {
+    "TRON Lightcycle / Run": "",
+    "Seven Dwarfs Mine Train": "",
+    "Space Mountain": "",
+    "Big Thunder Mountain Railroad": "",
+    "Tiana's Bayou Adventure": "",
+    "Pirates of the Caribbean": "",
+    "Haunted Mansion": ""
+  },
+  "epcot": {
+    "Guardians of the Galaxy: Cosmic Rewind": "",
+    "Test Track": "",
+    "Frozen Ever After": "",
+    "Remy's Ratatouille Adventure": "",
+    "Soarin' Around the World": ""
+  },
+  "hollywoodStudios": {
+    "Star Wars: Rise of the Resistance": "",
+    "The Twilight Zone Tower of Terror": "",
+    "Rock 'n' Roller Coaster Starring Aerosmith": "",
+    "Millennium Falcon: Smugglers Run": "",
+    "Slinky Dog Dash": "",
+    "Mickey & Minnie's Runaway Railway": ""
+  },
+  "animalKingdom": {
+    "Avatar Flight of Passage": "",
+    "Expedition Everest": "",
+    "Kilimanjaro Safaris": ""
+  },
+  "disneyland": {
+    "Indiana Jones Adventure": "https://d23.com/app/uploads/2025/02/1180w_664h_.jpg",
+    "Matterhorn Bobsleds": "https://cdn1.parksmedia.wdprapps.disney.com/resize/mwImage/1/630/354/75/dam/wdpro-assets/dlr/parks-and-tickets/attractions/disneyland/matterhorn-bobsleds/matterhorn-bobsleds-00.jpg?1726240582369",
+    "Star Wars: Rise of the Resistance": "https://cdn1.parksmedia.wdprapps.disney.com/resize/mwImage/1/1600/900/75/dam/disneyland/attractions/disneyland/star-wars-rise-of-the-resistance/rise-of-the-resisstance-interior-16x9.jpg?1762865005140",
+    "Space Mountain": "https://cdn1.parksmedia.wdprapps.disney.com/resize/mwImage/1/410/205/75/dam/disneyland/destinations/disneyland/tomorrowland/space-mountain-night-16x9.jpg?1747061483711",
+    "Big Thunder Mountain Railroad": "https://cdn1.parksmedia.wdprapps.disney.com/resize/mwImage/1/1600/900/75/dam/wdpro-assets/dlr/parks-and-tickets/attractions/disneyland/big-thunder-mountain-railroad/big-thunder-mountain-railroad-00.jpg?1726239725975",
+    "Pirates of the Caribbean": "https://sites.disney.com/app/uploads/sites/55/2019/11/Pirates01.png",
+    "Haunted Mansion": "https://i.ytimg.com/vi/pP708F223tA/maxresdefault.jpg",
+    "Tiana's Bayou Adventure": "https://cdn1.parksmedia.wdprapps.disney.com/resize/mwImage/1/1600/900/75/vision-dam/digital/parks-platform/parks-global-assets/disney-world/attractions/tianas-bayou-adventure/Tianas-Bayou-Adventure-16x9.jpg?2024-08-09T14:36:22+00:00",
+    "Mickey & Minnie's Runaway Railway": "https://cdn1.parksmedia.wdprapps.disney.com/resize/mwImage/1/1600/900/75/vision-dam/digital/parks-platform/parks-global-assets/disneyland/attractions/mickey-minnies-runaway-railway/MMRR-Exterior-16x9.jpg?2023-02-03T17:34:52+00:00",
+    "Millennium Falcon: Smugglers Run": "https://cdn1.parksmedia.wdprapps.disney.com/resize/mwImage/1/630/354/75/dam/disneyland/attractions/disneyland/millennium-falcon-smugglers-run/smugglers-run-interior-16x9.jpg?1726239762399"
+  },
+  "californiaAdventure": {
+    "Radiator Springs Racers": "",
+    "Guardians of the Galaxy - Mission: BREAKOUT!": "",
+    "Incredicoaster": "",
+    "WEB SLINGERS: A Spider-Man Adventure": "",
+    "Soarin' Over California": ""
+  },
+  "universalStudiosOrlando": {
+    "Hagrid's Magical Creatures Motorbike Adventure": "",
+    "Revenge of the Mummy": "",
+    "Harry Potter and the Escape from Gringotts": ""
+  },
+  "islandsOfAdventure": {
+    "VelociCoaster": "",
+    "The Incredible Hulk Coaster": "",
+    "Harry Potter and the Forbidden Journey": "",
+    "Hagrid's Magical Creatures Motorbike Adventure": ""
+  },
+  "epicUniverse": {
+    "Starfall Racers": "",
+    "Harry Potter and the Battle at the Ministry": "",
+    "How to Train Your Dragon - Untrainable": "",
+    "Mario Kart: Bowser's Challenge": "",
+    "Curse of the Werewolf": ""
+  },
+  "universalStudiosHollywood": {
+    "Harry Potter and the Forbidden Journey": "",
+    "Jurassic World - The Ride": "",
+    "Revenge of the Mummy - The Ride": "",
+    "The Secret Life of Pets: Off the Leash!": ""
+  }
+}

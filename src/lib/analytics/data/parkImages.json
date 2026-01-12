@@ -1,0 +1,54 @@
+{
+  "waltDisneyWorld": {
+    "6": {
+      "name": "Magic Kingdom",
+      "image": "https://cdn1.parksmedia.wdprapps.disney.com/resize/mwImage/1/1600/900/75/vision-dam/digital/parks-platform/parks-global-assets/disney-world/attractions/cinderella-castle/0724ZQ_0195MS_JLM-16x9.jpg?2023-03-06T17:58:34+00:00"
+    },
+    "5": {
+      "name": "EPCOT",
+      "image": "https://cdn1.parksmedia.wdprapps.disney.com/resize/mwImage/1/1349/464/75/vision-dam/digital/parks-platform/parks-global-assets/disney-world/attractions/spaceship-earth/1222ZQ_0247MS_JLM-16x9.jpg?2022-03-10T19:21:55+00:00%201349w"
+    },
+    "7": {
+      "name": "Disney's Hollywood Studios",
+      "image": "https://cdn.sanity.io/images/nxpteyfv/goguides/6ca4d5914070af28a23d545d7590e1028ae18442-1600x1066.jpg"
+    },
+    "8": {
+      "name": "Disney's Animal Kingdom",
+      "image": "https://disneyparksblog.com/app/uploads/2023/04/2023-dak-25-header-scaled.jpg"
+    }
+  },
+  "disneylandResort": {
+    "16": {
+      "name": "Disneyland",
+      "image": "https://cdn1.parksmedia.wdprapps.disney.com/resize/mwImage/1/1260/711/75/vision-dam/digital/parks-platform/parks-global-assets/disneyland/events/70th-anniversary/attraction/0237_DLR_70_Environmentals_05212025_JS_B-SUPERMOD-16x9.jpg?2025-06-04T20:48:29+00:00"
+    },
+    "17": {
+      "name": "Disney California Adventure",
+      "image": "https://cdn1.parksmedia.wdprapps.disney.com/resize/mwImage/1/3840/2160/75/vision-dam/digital/parks-platform/parks-global-assets/disneyland/attractions/pixar-pier/dca-pixar-pier-day-16x9.jpg?2022-12-20T22:19:24+00:00%203840w"
+    }
+  },
+  "universalOrlando": {
+    "64": {
+      "name": "Islands of Adventure",
+      "image": "https://www.disneydining.com/wp-content/uploads/2024/02/universal-orlando-islands-of-adventure.jpg"
+    },
+    "65": {
+      "name": "Universal Studios Florida",
+      "image": "https://cache.undercovertourist.com/blog/2022/10/1022-best-time-visit-uor-globe.jpg"
+    },
+    "67": {
+      "name": "Universal Volcano Bay",
+      "image": "https://www.thetopvillas.com/blog/wp-content/uploads/2017/06/rsz_1volcano_bay_orlando-1.jpg"
+    },
+    "334": {
+      "name": "Universal Epic Universe",
+      "image": "https://www.universalorlando.com/webdata/k2/en/us/files/Images/gds/ueu-theme-park-chronos-daytime-with-guests-c.jpg"
+    }
+  },
+  "universalHollywood": {
+    "66": {
+      "name": "Universal Studios Hollywood",
+      "image": "https://res.cloudinary.com/simpleview/image/upload/v1612197440/clients/anaheimca/uni_studios_hollywood_max_res_default2_3f15e0a6-8283-470c-8870-1f2a89c02952.jpg"
+    }
+  }
+}

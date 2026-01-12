@@ -77,6 +77,7 @@ export interface RideScore {
     varietyScore: number;
     efficiencyScore: number;
     proximityScore: number;
+    rideWeightScore?: number; // From ride weights data
   };
 }
 
@@ -164,6 +165,7 @@ export interface OptimizationInput {
     parkId?: number; // Queue-Times park ID for rope drop/entertainment data
     ropeDropTarget?: string; // User's selected ride to prioritize at rope drop
     parkCloseHour?: number; // Park closing hour (e.g., 21 for 9 PM) - used to cap schedule
+    skipFirstLastEnhancement?: boolean; // Skip "kick off your day" / "wrap up" messages (for park hopper)
   };
 }
 

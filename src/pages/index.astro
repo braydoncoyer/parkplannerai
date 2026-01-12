@@ -1,19 +1,18 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import Header from '../components/layout/Header.astro';
-import Dashboard from '../components/dashboard/Dashboard';
+import LandingPage from '../components/landing/LandingPage';
 ---
 
-<BaseLayout title="Theme Park Analytics | Live Wait Times & Crowd Levels">
+<BaseLayout title="ParkPlannerAI | AI-Powered Theme Park Wait Time Predictions">
   <Header />
   <main>
-    <Dashboard client:load />
+    <LandingPage client:load />
   </main>
 </BaseLayout>
 
 <style>
   main {
     background-color: #fafbfc;
-    min-height: calc(100vh - 64px);
   }
 </style>

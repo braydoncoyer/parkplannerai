@@ -19,7 +19,7 @@ function isActive(href: string, pathname: string): boolean {
   <div class="header-container">
     <a href="/" class="logo">
       <span class="logo-icon">🎢</span>
-      <span class="logo-text">ParkPulse</span>
+      <span class="logo-text">ParkPlannerAI</span>
     </a>
 
     <nav class="nav">
@@ -44,11 +44,11 @@ function isActive(href: string, pathname: string): boolean {
 </header>
 
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=DM+Sans:wght@400;500;600;700&display=swap');
 
   .header {
-    background: #ffffff;
-    border-bottom: 1px solid #e2e8f0;
+    background: #fdfbf7;
+    border-bottom: 1px solid #e2e0db;
     position: sticky;
     top: 0;
     z-index: 100;
@@ -78,9 +78,9 @@ function isActive(href: string, pathname: string): boolean {
   }
 
   .logo-text {
-    font-family: 'Outfit', sans-serif;
+    font-family: 'Fraunces', Georgia, serif;
     font-size: 20px;
-    font-weight: 700;
+    font-weight: 600;
     letter-spacing: -0.5px;
   }
 
@@ -91,7 +91,7 @@ function isActive(href: string, pathname: string): boolean {
   }
 
   .nav-link {
-    font-family: 'Outfit', sans-serif;
+    font-family: 'DM Sans', sans-serif;
     font-size: 14px;
     font-weight: 500;
     color: #64748b;
@@ -103,12 +103,12 @@ function isActive(href: string, pathname: string): boolean {
 
   .nav-link:hover {
     color: #1e293b;
-    background: #f1f5f9;
+    background: #f8f6f1;
   }
 
   .nav-link.active {
-    color: #0284c7;
-    background: #e0f2fe;
+    color: #c2410c;
+    background: #fff7ed;
   }
 
   .header-actions {
@@ -118,18 +118,19 @@ function isActive(href: string, pathname: string): boolean {
   }
 
   .cta-button {
-    font-family: 'Outfit', sans-serif;
+    font-family: 'DM Sans', sans-serif;
     font-size: 14px;
     font-weight: 600;
     color: white;
-    background: #1a1a1a;
+    background: #c2410c;
     padding: 10px 20px;
     border-radius: 8px;
     text-decoration: none;
+    transition: all 0.2s ease;
   }
 
   .cta-button:hover {
-    background: #333;
+    background: #9a3412;
   }
 
   /* Mobile Responsive */
