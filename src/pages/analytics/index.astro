@@ -1,7 +1,7 @@
 ---
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import Header from '../../components/layout/Header.astro';
-import AnalyticsDashboard from '../../components/analytics/AnalyticsDashboard';
+import AnalyticsDashboardWithProvider from '../../components/analytics/AnalyticsDashboardWithProvider';
 ---
 
 <BaseLayout title="Analytics | Theme Park Analytics">
@@ -15,7 +15,7 @@ import AnalyticsDashboard from '../../components/analytics/AnalyticsDashboard';
         </p>
       </div>
     </div>
-    <AnalyticsDashboard client:load />
+    <AnalyticsDashboardWithProvider client:only="react" />
   </main>
   <footer class="page-footer">
     <p>© {new Date().getFullYear()} ParkPlannerAI</p>

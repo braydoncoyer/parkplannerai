@@ -1,5 +1,11 @@
+-- ============================================================
+-- DEPRECATED: This file is kept for reference only.
+-- The database schema has moved to Convex.
+-- See: convex/schema.ts
+-- ============================================================
+
 -- Theme Park Analytics Database Schema
--- PostgreSQL Database
+-- PostgreSQL Database (DEPRECATED)
 
 -- Parks table (mirrors queue-times data)
 CREATE TABLE IF NOT EXISTS parks (

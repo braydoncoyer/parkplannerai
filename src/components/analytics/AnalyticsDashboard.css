@@ -60,6 +60,31 @@
   line-height: 1.5;
 }
 
+.milestone-progress {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.milestone-dot {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(194, 65, 12, 0.1);
+  color: var(--color-text-tertiary);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: default;
+}
+
+.milestone-dot.done {
+  background: var(--color-success-light);
+  color: var(--color-success);
+}
+
 /* Section Headers */
 .analytics-dashboard h2 {
   font-family: 'Fraunces', Georgia, serif;
@@ -72,6 +97,27 @@
 /* Insights Section */
 .insights-section {
   margin-bottom: 32px;
+}
+
+.insights-section.historical-insights {
+  background: var(--color-success-light);
+  border: 1px solid rgba(101, 163, 13, 0.2);
+  border-radius: 12px;
+  padding: 24px;
+}
+
+.insights-section.historical-insights h2 {
+  color: #3f6212;
+}
+
+.insights-section.historical-insights .insight-card {
+  background: var(--color-surface);
+  border-color: rgba(101, 163, 13, 0.3);
+}
+
+.insights-section.historical-insights .insight-card:hover {
+  border-color: var(--color-success);
+  box-shadow: 0 4px 12px rgba(101, 163, 13, 0.15);
 }
 
 .insights-grid {
@@ -207,6 +253,11 @@
   border-radius: 12px;
 }
 
+.chart-badge.live {
+  background: var(--color-success-light);
+  color: var(--color-success);
+}
+
 .chart-subtitle {
   font-size: 13px;
   color: var(--color-text-tertiary);
@@ -284,4 +335,154 @@
 
 .recharts-tooltip-label {
   font-weight: 600 !important;
+}
+
+/* Prediction Confidence Badges */
+.prediction-confidence {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 4px 10px;
+  border-radius: 16px;
+}
+
+.prediction-confidence.high {
+  background: var(--color-success-light);
+  color: var(--color-success);
+}
+
+.prediction-confidence.medium {
+  background: var(--color-primary-light);
+  color: var(--color-primary);
+}
+
+.prediction-confidence.low {
+  background: var(--color-warning-light);
+  color: var(--color-warning);
+}
+
+.prediction-confidence.fallback {
+  background: var(--color-elevated);
+  color: var(--color-text-tertiary);
+}
+
+.prediction-confidence-icon {
+  font-size: 12px;
+}
+
+.prediction-source-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  margin-top: 8px;
+}
+
+.prediction-source-info.convex {
+  color: var(--color-success);
+}
+
+.prediction-source-info.blended {
+  color: var(--color-primary);
+}
+
+/* Historical Trend Chart */
+.historical-trend-chart {
+  min-height: 380px;
+}
+
+/* Chart Placeholder */
+.chart-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 280px;
+  background: linear-gradient(135deg, var(--color-elevated) 0%, var(--color-bg) 100%);
+  border: 2px dashed var(--color-border);
+  border-radius: 8px;
+  text-align: center;
+  padding: 32px;
+}
+
+.placeholder-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+  opacity: 0.6;
+}
+
+.chart-placeholder p {
+  font-size: 14px;
+  color: var(--color-text-tertiary);
+  margin: 0;
+  max-width: 280px;
+  line-height: 1.5;
+}
+
+/* Park Hours Summary */
+.hours-summary {
+  display: flex;
+  justify-content: center;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--color-border-light);
+}
+
+.hours-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 6px 12px;
+  border-radius: 16px;
+}
+
+.hours-badge.extended {
+  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+  color: #92400e;
+}
+
+/* Chart Header Row */
+.chart-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+
+.chart-header-row h3 {
+  margin: 0;
+}
+
+/* Park Selector */
+.park-selector {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 12px;
+  padding: 6px 28px 6px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background-color: var(--color-surface);
+  color: var(--color-text-primary);
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  transition: border-color 0.2s ease;
+}
+
+.park-selector:hover {
+  border-color: var(--color-primary);
+}
+
+.park-selector:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px rgba(194, 65, 12, 0.1);
 }

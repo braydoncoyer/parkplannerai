@@ -185,7 +185,7 @@ function HeroSection() {
         </div>
 
         <h1 className="hero-title">
-          Know the <span className="gradient-text">perfect moment</span> to ride
+          Know the <span className="gradient-text">perfect time</span> to visit
         </h1>
 
         <p className="hero-subtitle">
@@ -234,7 +234,7 @@ function MethodologySection() {
     {
       icon: Activity,
       title: 'Live Queue Data',
-      description: 'Real-time wait times updated every 5 minutes. See actual conditions and how they compare to predictions.',
+      description: 'Real-time wait times updated every 15 minutes. See actual conditions and how they compare to predictions.',
       accent: 'emerald',
     },
     {

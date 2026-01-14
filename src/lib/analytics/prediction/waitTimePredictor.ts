@@ -1,7 +1,10 @@
 // Wait Time Predictor
 // Predicts wait times based on historical patterns and ride popularity
+// Now with Convex-powered predictions when historical data is available
 
+import type { ConvexReactClient } from 'convex/react';
 import type { RidePopularity, RideWithPredictions, PredictedWaitTime } from '../types';
+import { getConvexPredictions } from './convexPredictor';
 import {
   getHourlyPredictions,
   calculatePredictedWait,
@@ -211,4 +214,80 @@ export function compareHours(
     hour2Total,
     savings: hour1Total - hour2Total,
   };
+}
+
+/**
+ * Generate predictions using Convex historical data when available
+ * Falls back to hardcoded patterns when insufficient data
+ *
+ * @param convex - Convex client (pass null to skip Convex and use hardcoded)
+ * @param ride - Ride data from Queue-Times API
+ * @param visitDate - Target visit date
+ * @returns Promise resolving to ride with predictions
+ */
+export async function predictRideWaitTimesWithHistory(
+  convex: ConvexReactClient | null,
+  ride: {
+    id: number | string;
+    name: string;
+    land?: string;
+    isOpen?: boolean;
+    waitTime?: number | null;
+  },
+  visitDate: Date | string
+): Promise<RideWithPredictions> {
+  const enrichedRide = enrichRideWithMetadata(ride);
+
+  // Try Convex predictions if client is available
+  if (convex) {
+    try {
+      const convexResult = await getConvexPredictions(
+        convex,
+        String(ride.id),
+        visitDate,
+        enrichedRide.popularity,
+        enrichedRide.currentWaitTime
+      );
+
+      return {
+        ...enrichedRide,
+        hourlyPredictions: convexResult.hourlyPredictions,
+        predictionConfidence: convexResult.confidence,
+        predictionSource: convexResult.dataSource,
+      };
+    } catch (error) {
+      console.warn('Convex prediction failed, using fallback:', error);
+    }
+  }
+
+  // Fallback to existing hardcoded logic
+  return predictRideWaitTimes(ride, visitDate);
+}
+
+/**
+ * Batch predict wait times for multiple rides using Convex data
+ * More efficient than calling predictRideWaitTimesWithHistory for each ride
+ *
+ * @param convex - Convex client (pass null to skip Convex and use hardcoded)
+ * @param rides - Array of ride data from Queue-Times API
+ * @param visitDate - Target visit date
+ * @returns Promise resolving to array of rides with predictions
+ */
+export async function predictMultipleRidesWithHistory(
+  convex: ConvexReactClient | null,
+  rides: Array<{
+    id: number | string;
+    name: string;
+    land?: string;
+    isOpen?: boolean;
+    waitTime?: number | null;
+  }>,
+  visitDate: Date | string
+): Promise<RideWithPredictions[]> {
+  // Process all rides in parallel
+  const predictions = await Promise.all(
+    rides.map((ride) => predictRideWaitTimesWithHistory(convex, ride, visitDate))
+  );
+
+  return predictions;
 }

@@ -8,7 +8,8 @@ import type {
   ScheduleItem,
   RideCategory,
 } from '../types';
-import { predictRideWaitTimes, getPredictedWaitForHour } from '../prediction/waitTimePredictor';
+import type { ConvexReactClient } from 'convex/react';
+import { predictRideWaitTimes, getPredictedWaitForHour, predictMultipleRidesWithHistory } from '../prediction/waitTimePredictor';
 import {
   analyzeBreakOpportunity,
   createScheduledBreak,
@@ -847,6 +848,123 @@ function prioritizeRidesForRopeDrop(
 
     return weightB - weightA;
   });
+}
+
+/**
+ * Async version of optimizeSchedule that uses Convex historical data for predictions
+ * Falls back to hardcoded patterns when Convex client is null or insufficient data
+ *
+ * @param input - Optimization input with rides and preferences
+ * @param convex - Optional Convex client for historical predictions
+ * @returns Promise resolving to optimized schedule
+ */
+export async function optimizeScheduleAsync(
+  input: OptimizationInput,
+  convex: ConvexReactClient | null
+): Promise<OptimizedSchedule> {
+  const { selectedRides, preferences } = input;
+
+  // Parse timing
+  const arrivalHour = parseArrivalTime(preferences.arrivalTime);
+  const departureHour = calculateDepartureHour(
+    arrivalHour,
+    preferences.duration,
+    preferences.parkCloseHour
+  );
+  const visitDate = new Date(preferences.visitDate);
+
+  // Enrich rides with predictions using Convex data when available
+  const ridesWithPredictions: RideWithPredictions[] = await predictMultipleRidesWithHistory(
+    convex,
+    selectedRides.map((ride) => ({
+      id: ride.id,
+      name: ride.name,
+      land: ride.land,
+      isOpen: ride.isOpen,
+      waitTime: ride.waitTime,
+    })),
+    visitDate
+  );
+
+  // Filter to only open rides
+  const availableRides = ridesWithPredictions.filter((r) => r.isOpen);
+
+  if (availableRides.length === 0) {
+    return createEmptySchedule('No open rides available');
+  }
+
+  // Build the optimized schedule
+  let schedule = buildSchedule(
+    availableRides,
+    arrivalHour,
+    departureHour,
+    preferences.priority,
+    preferences.includeBreaks,
+    preferences.ropeDropMode ?? false,
+    preferences.parkId,
+    preferences.ropeDropTarget
+  );
+
+  // Post-process: Add special wording for first and last rides (skip for park hopper sub-schedules)
+  if (!preferences.skipFirstLastEnhancement) {
+    schedule = enhanceFirstLastRideReasoning(schedule);
+  }
+
+  // Post-process: Detect large gaps and add exploration/rest suggestions
+  schedule = addGapFillSuggestions(schedule);
+
+  // Calculate totals
+  const rideItems = schedule.filter((item) => item.type === 'ride');
+  const breakItems = schedule.filter((item) => item.type !== 'ride');
+
+  const totalWaitTime = sum(rideItems.map((item) => item.expectedWait ?? 0));
+  const totalWalkingTime = rideItems.length * WALK_TIME_BETWEEN_RIDES;
+  const totalDuration = calculateTotalDuration(schedule, arrivalHour);
+
+  // Calculate comparison to baseline (naive approach)
+  const baselineWait = calculateBaselineWait(availableRides, arrivalHour);
+  const waitTimeSaved = Math.max(0, baselineWait - totalWaitTime);
+  const percentImprovement = baselineWait > 0
+    ? Math.round((waitTimeSaved / baselineWait) * 100)
+    : 0;
+
+  // Generate insights
+  const insights = generateInsights(
+    schedule,
+    availableRides,
+    waitTimeSaved,
+    percentImprovement,
+    {
+      includeBreaks: preferences.includeBreaks,
+      duration: preferences.duration,
+      ropeDropMode: preferences.ropeDropMode,
+      parkId: preferences.parkId,
+    }
+  );
+
+  // Add prediction source insight if using Convex data
+  const convexPoweredRides = ridesWithPredictions.filter(
+    (r) => r.predictionSource === 'convex' || r.predictionSource === 'blended'
+  );
+  if (convexPoweredRides.length > 0) {
+    insights.unshift(
+      `Predictions powered by ${convexPoweredRides.length} rides with historical data.`
+    );
+  }
+
+  return {
+    items: schedule,
+    totalWaitTime,
+    totalWalkingTime,
+    totalDuration,
+    ridesScheduled: rideItems.length,
+    breaksScheduled: breakItems.length,
+    insights,
+    comparisonToBaseline: {
+      waitTimeSaved,
+      percentImprovement,
+    },
+  };
 }
 
 export {

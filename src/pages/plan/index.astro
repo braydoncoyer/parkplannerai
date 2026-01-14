@@ -1,13 +1,13 @@
 ---
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import Header from '../../components/layout/Header.astro';
-import PlanWizard from '../../components/plan-wizard/PlanWizard';
+import PlanWizardWithProvider from '../../components/plan-wizard/PlanWizardWithProvider';
 ---
 
 <BaseLayout title="Plan My Visit | Theme Park Analytics">
   <Header />
   <main class="plan-page">
-    <PlanWizard client:load />
+    <PlanWizardWithProvider client:only="react" />
   </main>
 </BaseLayout>
 
