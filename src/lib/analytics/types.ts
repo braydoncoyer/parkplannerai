@@ -19,6 +19,12 @@ export interface RideMetadata {
   duration: number; // Minutes for ride experience
 }
 
+// Prediction confidence level
+export type PredictionConfidence = 'high' | 'medium' | 'low' | 'fallback';
+
+// Prediction data source
+export type PredictionSource = 'convex' | 'hardcoded' | 'blended';
+
 // Ride with predictions
 export interface RideWithPredictions {
   id: number | string;
@@ -30,6 +36,9 @@ export interface RideWithPredictions {
   category: RideCategory;
   duration: number;
   hourlyPredictions: number[]; // Predicted wait for each hour (9am-9pm)
+  // New fields for Convex-powered predictions
+  predictionConfidence?: PredictionConfidence;
+  predictionSource?: PredictionSource;
 }
 
 // Prediction result

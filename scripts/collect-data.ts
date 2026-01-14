@@ -1,5 +1,11 @@
 /**
- * Data Collection Script
+ * ============================================================
+ * DEPRECATED: This file is kept for reference only.
+ * Data collection has moved to Convex.
+ * See: convex/actions/collectWaitTimes.ts
+ * ============================================================
+ *
+ * Data Collection Script (DEPRECATED)
  *
  * This script polls the Queue-Times API and stores wait time data in PostgreSQL.
  * Should be run as a cron job every 10 minutes.

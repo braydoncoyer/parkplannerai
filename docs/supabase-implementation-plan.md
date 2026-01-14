@@ -1,5 +1,11 @@
 # Supabase Database Persistence for Ride Wait Times
 
+> **DEPRECATED**: This implementation plan has been superseded by Convex.
+> See the new implementation in `convex/` directory.
+> This document is kept for historical reference only.
+
+---
+
 ## Overview
 Add Supabase (hosted PostgreSQL) to persist ride wait time data every 15 minutes, enabling historical queries like "what were wait times last week?"
 

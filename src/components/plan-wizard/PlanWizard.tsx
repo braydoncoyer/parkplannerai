@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { useConvex } from 'convex/react';
 import {
   ChevronRight,
   ChevronLeft,
@@ -35,6 +36,7 @@ import {
 import './PlanWizard.css';
 import {
   optimizeSchedule,
+  optimizeScheduleAsync,
   optimizeMultiDaySchedule,
   classifyDayType,
   getDayTypeDescription,
@@ -217,6 +219,7 @@ interface TripReport {
   totalRides: number;
   waitTimeSaved: number;
   percentImprovement: number;
+  predictionSource: 'convex' | 'hardcoded' | 'blended';
 }
 
 interface SavedPlan {
@@ -1876,6 +1879,21 @@ function TripReportView({
         </div>
       </div>
 
+      {/* Fallback Prediction Notice */}
+      {report.predictionSource === 'hardcoded' && (
+        <div className="pw-prediction-notice">
+          <div className="pw-prediction-notice-icon">
+            <Clock size={16} />
+          </div>
+          <div className="pw-prediction-notice-content">
+            <span className="pw-prediction-notice-title">Using estimated wait times</span>
+            <span className="pw-prediction-notice-text">
+              We're still collecting historical data for smarter predictions. These estimates are based on typical patterns for this time of year.
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* Main Content: Schedule + Sticky Sidebar */}
       <div className="pw-report-layout">
         {/* Left: Current Day Schedule */}
@@ -2338,6 +2356,15 @@ function SavedPlansView({
 // ============================================================================
 
 export default function PlanWizard() {
+  // Get Convex client for historical predictions
+  // Returns null if not in ConvexProvider or Convex is not configured
+  let convex = null;
+  try {
+    convex = useConvex();
+  } catch {
+    // Not in ConvexProvider or Convex not configured - use fallback predictions
+  }
+
   const [step, setStep] = useState<Step>('park');
   const [parks, setParks] = useState<Park[]>([]);
   const [rides, setRides] = useState<Ride[]>([]);
@@ -2966,7 +2993,7 @@ export default function PlanWizard() {
           };
 
           // Helper: Schedule rides at a park and add to items
-          const scheduleRidesAtPark = (
+          const scheduleRidesAtPark = async (
             parkRides: typeof park1Rides,
             parkId: number,
             startHour: number,
@@ -2974,10 +3001,10 @@ export default function PlanWizard() {
             isRopeDrop: boolean,
             ropeDropTarget?: string,
             parkLabel?: string // e.g., "Park 1" or the actual park name for custom messaging
-          ): void => {
+          ): Promise<void> => {
             if (parkRides.length === 0) return;
 
-            const optimized = optimizeSchedule({
+            const optimized = await optimizeScheduleAsync({
               selectedRides: parkRides,
               preferences: {
                 visitDate: dateKey,
@@ -2991,7 +3018,7 @@ export default function PlanWizard() {
                 parkCloseHour: endHour,
                 skipFirstLastEnhancement: true, // We'll handle first/last messaging after combining parks
               },
-            });
+            }, convex);
 
             for (const item of optimized.items) {
               if (item.type === 'ride' && item.ride) {
@@ -3200,7 +3227,7 @@ export default function PlanWizard() {
               : undefined
             : undefined;
 
-          scheduleRidesAtPark(
+          await scheduleRidesAtPark(
             park1Rides,
             selectedPark,
             parkOpenHour,
@@ -3223,7 +3250,7 @@ export default function PlanWizard() {
           const park2ArrivalHour = actualTransitionHour + Math.ceil(travelMinutes / 60);
 
           // Schedule ALL remaining Park 2 rides until park close
-          scheduleRidesAtPark(
+          await scheduleRidesAtPark(
             park2Rides,
             secondParkId,
             park2ArrivalHour,
@@ -3302,7 +3329,7 @@ export default function PlanWizard() {
             actualArrivalTime = `${openHour > 12 ? openHour - 12 : openHour}${openHour >= 12 ? 'pm' : 'am'}`;
           }
 
-          const optimized = optimizeSchedule({
+          const optimized = await optimizeScheduleAsync({
             selectedRides: uniqueRides,
             preferences: {
               visitDate: dateKey,
@@ -3315,7 +3342,7 @@ export default function PlanWizard() {
               ropeDropTarget: sd.ropeDropTarget, // User's selected rope drop priority ride
               parkCloseHour, // Pass actual park closing hour to cap schedule
             },
-          });
+          }, convex);
 
           // Build items from optimized schedule, checking if each ride is a re-ride
           for (const item of optimized.items) {
@@ -4295,6 +4322,15 @@ export default function PlanWizard() {
       ? Math.round((waitTimeSaved / totalPeakWait) * 100)
       : 0;
 
+    // Detect prediction source from insights
+    // If any day has "Predictions powered by" insight, we're using Convex data
+    const allInsights = dayItineraries.flatMap(d => d.insights);
+    const hasConvexPredictions = allInsights.some(insight =>
+      insight.toLowerCase().includes('predictions powered by') ||
+      insight.toLowerCase().includes('historical data')
+    );
+    const predictionSource: 'convex' | 'hardcoded' | 'blended' = hasConvexPredictions ? 'convex' : 'hardcoded';
+
     const tripReport: TripReport = {
       days: dayItineraries,
       strategySummary,
@@ -4303,6 +4339,7 @@ export default function PlanWizard() {
       totalRides: totalRidesScheduled,
       waitTimeSaved,
       percentImprovement,
+      predictionSource,
     };
 
     setReport(tripReport);

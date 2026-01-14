@@ -21,10 +21,12 @@ export type {
   MultiDaySchedule,
   RideDayAssignment,
   EntertainmentItem,
+  PredictionConfidence,
+  PredictionSource,
 } from './types';
 
 // Main optimization functions
-export { optimizeSchedule } from './optimization/scheduleOptimizer';
+export { optimizeSchedule, optimizeScheduleAsync } from './optimization/scheduleOptimizer';
 export { optimizeMultiDaySchedule } from './optimization/multiDayOptimizer';
 
 // Prediction functions
@@ -34,7 +36,20 @@ export {
   getDetailedPrediction,
   findBestHoursForRide,
   findWorstHoursForRide,
+  predictRideWaitTimesWithHistory,
+  predictMultipleRidesWithHistory,
 } from './prediction/waitTimePredictor';
+
+// Convex-powered predictions
+export {
+  getConvexPredictions,
+  shouldUseConvexPredictions,
+  getPredictionSystemStatus,
+} from './prediction/convexPredictor';
+
+export type {
+  ConvexPredictionResult,
+} from './prediction/convexPredictor';
 
 // Day classification
 export {

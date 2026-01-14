@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react';
+import { useQuery } from 'convex/react';
+import { api } from '../../../convex/_generated/api';
 import {
   BarChart,
   Bar,
@@ -11,6 +13,7 @@ import {
   Line,
   Legend,
 } from 'recharts';
+import { PredictionConfidenceBadge } from './PredictionConfidenceBadge';
 import './AnalyticsDashboard.css';
 
 interface Park {
@@ -36,7 +39,7 @@ interface ParksResponse {
   };
 }
 
-// Sample historical data (simulated - will be replaced with real data)
+// Sample historical data (fallback when Convex data is insufficient)
 const sampleWeeklyData = [
   { day: 'Mon', disney: 32, universal: 28 },
   { day: 'Tue', disney: 28, universal: 25 },
@@ -130,18 +133,31 @@ function ParkComparisonChart({ parks }: { parks: Park[] }) {
   );
 }
 
-function WeeklyTrendChart() {
+function WeeklyTrendChart({
+  data,
+  isRealData
+}: {
+  data: { day: string; disney: number; universal: number }[];
+  isRealData: boolean;
+}) {
   return (
     <div className="chart-container">
       <h3>
         Weekly Crowd Patterns
-        <span className="chart-badge">Sample Data</span>
+        {isRealData ? (
+          <span className="chart-badge live">Historical Data</span>
+        ) : (
+          <span className="chart-badge">Sample Data</span>
+        )}
       </h3>
       <p className="chart-subtitle">
-        Average wait times by day of week (collecting real data...)
+        {isRealData
+          ? 'Average wait times by day of week from collected data'
+          : 'Average wait times by day of week (collecting real data...)'
+        }
       </p>
       <ResponsiveContainer width="100%" height={280}>
-        <LineChart data={sampleWeeklyData} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
+        <LineChart data={data} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e2e0db" />
           <XAxis dataKey="day" tick={{ fontSize: 12, fill: '#64748b' }} />
           <YAxis tick={{ fontSize: 12, fill: '#64748b' }} />
@@ -176,18 +192,31 @@ function WeeklyTrendChart() {
   );
 }
 
-function HourlyPatternChart() {
+function HourlyPatternChart({
+  data,
+  isRealData
+}: {
+  data: { hour: string; wait: number }[];
+  isRealData: boolean;
+}) {
   return (
     <div className="chart-container">
       <h3>
         Typical Daily Pattern
-        <span className="chart-badge">Sample Data</span>
+        {isRealData ? (
+          <span className="chart-badge live">Historical Data</span>
+        ) : (
+          <span className="chart-badge">Sample Data</span>
+        )}
       </h3>
       <p className="chart-subtitle">
-        When crowds peak throughout the day (collecting real data...)
+        {isRealData
+          ? 'When crowds peak throughout the day based on collected data'
+          : 'When crowds peak throughout the day (collecting real data...)'
+        }
       </p>
       <ResponsiveContainer width="100%" height={280}>
-        <BarChart data={sampleHourlyData} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
+        <BarChart data={data} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e2e0db" />
           <XAxis dataKey="hour" tick={{ fontSize: 11, fill: '#64748b' }} />
           <YAxis tick={{ fontSize: 12, fill: '#64748b' }} />
@@ -211,9 +240,363 @@ function HourlyPatternChart() {
   );
 }
 
+function HistoricalTrendChart({
+  data,
+  isRealData
+}: {
+  data: { date: string; disney: number | null; universal: number | null }[];
+  isRealData: boolean;
+}) {
+  // Filter to last 14 data points for readability if there's a lot of data
+  const displayData = data.length > 14 ? data.slice(-14) : data;
+
+  return (
+    <div className="chart-container historical-trend-chart">
+      <h3>
+        Historical Wait Time Trend
+        {isRealData ? (
+          <span className="chart-badge live">Historical Data</span>
+        ) : (
+          <span className="chart-badge">Collecting Data</span>
+        )}
+      </h3>
+      <p className="chart-subtitle">
+        {isRealData
+          ? `Daily average wait times over the past ${displayData.length} days`
+          : 'Gathering historical data to show trends over time...'
+        }
+      </p>
+      {isRealData && displayData.length > 0 ? (
+        <ResponsiveContainer width="100%" height={300}>
+          <LineChart data={displayData} margin={{ top: 20, right: 30, left: 0, bottom: 20 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#e2e0db" />
+            <XAxis
+              dataKey="date"
+              tick={{ fontSize: 11, fill: '#64748b' }}
+              angle={-45}
+              textAnchor="end"
+              height={60}
+            />
+            <YAxis
+              tick={{ fontSize: 12, fill: '#64748b' }}
+              label={{ value: 'Avg Wait (min)', angle: -90, position: 'insideLeft', style: { textAnchor: 'middle', fill: '#64748b', fontSize: 12 } }}
+            />
+            <Tooltip
+              contentStyle={{
+                backgroundColor: 'white',
+                border: '1px solid #e2e0db',
+                borderRadius: '8px',
+                fontSize: '13px',
+              }}
+              formatter={(value) => value != null ? [`${value} min`, ''] : ['No data', '']}
+            />
+            <Legend />
+            <Line
+              type="monotone"
+              dataKey="disney"
+              name="Disney Parks"
+              stroke="#c2410c"
+              strokeWidth={2}
+              dot={{ fill: '#c2410c', strokeWidth: 2, r: 3 }}
+              connectNulls
+            />
+            <Line
+              type="monotone"
+              dataKey="universal"
+              name="Universal Parks"
+              stroke="#65a30d"
+              strokeWidth={2}
+              dot={{ fill: '#65a30d', strokeWidth: 2, r: 3 }}
+              connectNulls
+            />
+          </LineChart>
+        </ResponsiveContainer>
+      ) : (
+        <div className="chart-placeholder">
+          <div className="placeholder-icon">📈</div>
+          <p>Historical trend data will appear here once we have 3+ days of data</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function LandComparisonChart({
+  data,
+  isRealData,
+  parks,
+  selectedPark,
+  onParkChange
+}: {
+  data: { land: string; fullName: string; avgWait: number; samples: number }[];
+  isRealData: boolean;
+  parks: { externalId: string; name: string }[];
+  selectedPark: string | undefined;
+  onParkChange: (parkId: string | undefined) => void;
+}) {
+  // Calculate dynamic height based on number of items
+  const chartHeight = Math.max(200, data.length * 32 + 40);
+
+  // Shorten park name for display
+  const shortenParkName = (name: string) => {
+    return name
+      .replace('Disneyland Resort - ', '')
+      .replace('Walt Disney World - ', '')
+      .replace('Disneyland Paris - ', '')
+      .replace(' Theme Park', '')
+      .replace(' Park', '');
+  };
+
+  return (
+    <div className="chart-container">
+      <div className="chart-header-row">
+        <h3>
+          Wait Times by Land
+          {isRealData ? (
+            <span className="chart-badge live">Historical Data</span>
+          ) : (
+            <span className="chart-badge">Collecting Data</span>
+          )}
+        </h3>
+        {parks.length > 0 && (
+          <select
+            className="park-selector"
+            value={selectedPark || ''}
+            onChange={(e) => onParkChange(e.target.value || undefined)}
+          >
+            <option value="">All Disney Parks</option>
+            {parks.map((park) => (
+              <option key={park.externalId} value={park.externalId}>
+                {shortenParkName(park.name)}
+              </option>
+            ))}
+          </select>
+        )}
+      </div>
+      <p className="chart-subtitle">
+        {isRealData
+          ? 'Shortest wait times across themed areas'
+          : 'Gathering land-level data for comparison...'
+        }
+      </p>
+      {isRealData && data.length > 0 ? (
+        <ResponsiveContainer width="100%" height={chartHeight}>
+          <BarChart
+            data={data}
+            layout="vertical"
+            margin={{ top: 10, right: 20, left: 0, bottom: 10 }}
+          >
+            <CartesianGrid strokeDasharray="3 3" stroke="#e2e0db" horizontal={true} vertical={false} />
+            <XAxis
+              type="number"
+              tick={{ fontSize: 12, fill: '#64748b' }}
+              domain={[0, 'auto']}
+              unit=" min"
+            />
+            <YAxis
+              type="category"
+              dataKey="land"
+              tick={{ fontSize: 12, fill: '#64748b' }}
+              width={110}
+            />
+            <Tooltip
+              contentStyle={{
+                backgroundColor: 'white',
+                border: '1px solid #e2e0db',
+                borderRadius: '8px',
+                fontSize: '13px',
+              }}
+              formatter={(value, name, props) => {
+                const payload = props?.payload as { fullName?: string } | undefined;
+                return [`${value} min avg`, payload?.fullName || 'Avg Wait'];
+              }}
+            />
+            <Bar
+              dataKey="avgWait"
+              name="Avg Wait"
+              radius={[0, 4, 4, 0]}
+              fill="#c2410c"
+            />
+          </BarChart>
+        </ResponsiveContainer>
+      ) : (
+        <div className="chart-placeholder">
+          <div className="placeholder-icon">🏰</div>
+          <p>Land comparison data will appear here once we collect enough themed area data</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ParkHoursChart({
+  data,
+  summary,
+  isRealData
+}: {
+  data: { day: string; avgHours: number; extendedDays: number; totalDays: number }[];
+  summary: {
+    avgHoursPerDay: number;
+    longestDay: number;
+    shortestDay: number;
+    extendedHoursDays: number;
+    totalSchedules: number;
+    parksTracked: number;
+  } | null;
+  isRealData: boolean;
+}) {
+  return (
+    <div className="chart-container">
+      <h3>
+        Park Operating Hours
+        {isRealData ? (
+          <span className="chart-badge live">Historical Data</span>
+        ) : (
+          <span className="chart-badge">Collecting Data</span>
+        )}
+      </h3>
+      <p className="chart-subtitle">
+        {isRealData && summary
+          ? `Average ${summary.avgHoursPerDay}h/day across ${summary.parksTracked} parks`
+          : 'Gathering park schedule data...'
+        }
+      </p>
+      {isRealData && data.length > 0 ? (
+        <>
+          <ResponsiveContainer width="100%" height={220}>
+            <BarChart data={data} margin={{ top: 10, right: 30, left: 0, bottom: 10 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e2e0db" />
+              <XAxis dataKey="day" tick={{ fontSize: 12, fill: '#64748b' }} />
+              <YAxis
+                tick={{ fontSize: 12, fill: '#64748b' }}
+                domain={[0, 'auto']}
+                label={{ value: 'Hours', angle: -90, position: 'insideLeft', style: { textAnchor: 'middle', fill: '#64748b', fontSize: 11 } }}
+              />
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: 'white',
+                  border: '1px solid #e2e0db',
+                  borderRadius: '8px',
+                  fontSize: '13px',
+                }}
+                formatter={(value) => [`${value} hours`, 'Avg Hours']}
+              />
+              <Bar
+                dataKey="avgHours"
+                name="Avg Hours"
+                fill="#0891b2"
+                radius={[4, 4, 0, 0]}
+              />
+            </BarChart>
+          </ResponsiveContainer>
+          {summary && summary.extendedHoursDays > 0 && (
+            <div className="hours-summary">
+              <span className="hours-badge extended">
+                ✨ {summary.extendedHoursDays} days with extended hours
+              </span>
+            </div>
+          )}
+        </>
+      ) : (
+        <div className="chart-placeholder">
+          <div className="placeholder-icon">🕐</div>
+          <p>Park hours analysis will appear here once we collect schedule data</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DataCollectionStatus({
+  status
+}: {
+  status: {
+    totalSnapshots: number;
+    totalRides: number;
+    totalParks: number;
+    daysOfData: number;
+    currentMilestone: string;
+    nextMilestone: string;
+    milestones: {
+      oneWeek: boolean;
+      twoWeeks: boolean;
+      fourWeeks: boolean;
+      threeMonths: boolean;
+      oneYear: boolean;
+    };
+  } | undefined;
+}) {
+  if (!status) {
+    return (
+      <div className="collection-notice">
+        <div className="notice-icon">📊</div>
+        <div className="notice-content">
+          <strong>Building Historical Database</strong>
+          <p>
+            We're collecting data every 15 minutes to build crowd predictions. Historical
+            insights will become more accurate over time.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  const milestoneProgress = [
+    { label: '1 week', done: status.milestones.oneWeek },
+    { label: '2 weeks', done: status.milestones.twoWeeks },
+    { label: '1 month', done: status.milestones.fourWeeks },
+    { label: '3 months', done: status.milestones.threeMonths },
+    { label: '1 year', done: status.milestones.oneYear },
+  ];
+
+  return (
+    <div className="collection-notice">
+      <div className="notice-icon">📊</div>
+      <div className="notice-content">
+        <strong>{status.currentMilestone}</strong>
+        <p>
+          {status.totalSnapshots.toLocaleString()} data points collected across {status.totalParks} parks
+          and {status.totalRides} rides.
+          {status.nextMilestone !== 'Complete!' && (
+            <> Next milestone: <strong>{status.nextMilestone}</strong></>
+          )}
+        </p>
+        <div className="milestone-progress">
+          {milestoneProgress.map((m) => (
+            <span
+              key={m.label}
+              className={`milestone-dot ${m.done ? 'done' : ''}`}
+              title={m.label}
+            >
+              {m.done ? '✓' : '○'}
+            </span>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function AnalyticsDashboard() {
   const [data, setData] = useState<ParksResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const [selectedLandPark, setSelectedLandPark] = useState<string | undefined>(undefined);
+
+  // Convex queries for historical data
+  const weeklyPatterns = useQuery(api.queries.analytics.getWeeklyPatterns, { weeks: 4 });
+  const hourlyPatterns = useQuery(api.queries.analytics.getHourlyPatterns, { days: 14 });
+  const insights = useQuery(api.queries.analytics.getAnalyticsInsights);
+  const collectionStatus = useQuery(api.queries.analytics.getDataCollectionStatus);
+  const historicalTrend = useQuery(api.queries.analytics.getHistoricalTrend, { days: 30 });
+  const allParks = useQuery(api.queries.parks.getAllParks);
+  const landComparison = useQuery(
+    api.queries.analytics.getLandComparison,
+    selectedLandPark ? { days: 14, parkExternalId: selectedLandPark } : { days: 14 }
+  );
+  const parkHours = useQuery(api.queries.analytics.getParkHoursAnalysis, { days: 30 });
+
+  // Filter to Disney parks for land comparison dropdown
+  const disneyParks = allParks?.filter(p => p.operator === 'Disney') ?? [];
 
   useEffect(() => {
     fetch('/api/parks.json')
@@ -236,25 +619,26 @@ export default function AnalyticsDashboard() {
 
   const lowCrowdParks = data?.parks.filter((p) => p.stats.crowdLevel === 'low').length || 0;
 
-  // Determine best day recommendation (simulated)
-  const today = new Date().getDay();
-  const bestDays = ['Tuesday', 'Wednesday', 'Monday'];
-  const worstDays = ['Saturday', 'Sunday', 'Friday'];
+  // Use Convex insights if available, otherwise fallback to hardcoded
+  const bestDayValue = insights?.hasEnoughData && insights.bestDay
+    ? insights.bestDay.name
+    : 'Tuesday';
+  const bestDayDescription = insights?.hasEnoughData && insights.bestDay
+    ? `${insights.bestDay.avgWait} min avg wait (from data)`
+    : 'Based on typical patterns';
+
+  // Use Convex data for charts if available, otherwise use sample data
+  const weeklyChartData = weeklyPatterns?.hasEnoughData
+    ? weeklyPatterns.data
+    : sampleWeeklyData;
+  const hourlyChartData = hourlyPatterns?.hasEnoughData
+    ? hourlyPatterns.data
+    : sampleHourlyData;
 
   return (
     <div className="analytics-dashboard">
-      {/* Data Collection Notice */}
-      <div className="collection-notice">
-        <div className="notice-icon">📊</div>
-        <div className="notice-content">
-          <strong>Building Historical Database</strong>
-          <p>
-            We're collecting data every 10 minutes to build crowd predictions. Historical
-            insights will become more accurate over time. Currently showing live data and
-            sample patterns.
-          </p>
-        </div>
-      </div>
+      {/* Data Collection Status */}
+      <DataCollectionStatus status={collectionStatus} />
 
       {/* Current Insights */}
       <section className="insights-section">
@@ -283,13 +667,62 @@ export default function AnalyticsDashboard() {
           />
           <InsightCard
             icon="📅"
-            title="Best Days to Visit"
-            value={bestDays[0]}
-            description="Based on typical patterns"
+            title="Best Day to Visit"
+            value={bestDayValue}
+            description={bestDayDescription}
             trend="down"
           />
         </div>
       </section>
+
+      {/* Historical Insights (when available) */}
+      {insights?.hasEnoughData && (
+        <section className="insights-section historical-insights">
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+            <h2 style={{ margin: 0 }}>Historical Insights</h2>
+            <PredictionConfidenceBadge
+              confidence={
+                collectionStatus?.milestones.fourWeeks ? 'high' :
+                collectionStatus?.milestones.twoWeeks ? 'medium' : 'low'
+              }
+              source="convex"
+              showSource
+            />
+          </div>
+          <div className="insights-grid">
+            <InsightCard
+              icon="📈"
+              title="Best Time to Visit"
+              value={insights.bestHour?.time || 'Morning'}
+              description={`${insights.bestHour?.avgWait || 0} min avg wait`}
+              trend="down"
+            />
+            <InsightCard
+              icon="⏰"
+              title="Busiest Time"
+              value={insights.worstHour?.time || 'Afternoon'}
+              description={`${insights.worstHour?.avgWait || 0} min avg wait`}
+              trend="up"
+            />
+            <InsightCard
+              icon="📊"
+              title="Worst Day to Visit"
+              value={insights.worstDay?.name || 'Saturday'}
+              description={`${insights.worstDay?.avgWait || 0} min avg wait`}
+              trend="up"
+            />
+            {insights.weekOverWeekTrend && (
+              <InsightCard
+                icon="📉"
+                title="Week-over-Week"
+                value={`${insights.weekOverWeekTrend.percentChange > 0 ? '+' : ''}${insights.weekOverWeekTrend.percentChange}%`}
+                description={`Crowds are ${insights.weekOverWeekTrend.direction}`}
+                trend={insights.weekOverWeekTrend.direction === 'up' ? 'up' : insights.weekOverWeekTrend.direction === 'down' ? 'down' : 'neutral'}
+              />
+            )}
+          </div>
+        </section>
+      )}
 
       {/* Current Park Comparison */}
       {data && data.parks.length > 0 && (
@@ -298,10 +731,40 @@ export default function AnalyticsDashboard() {
         </section>
       )}
 
+      {/* Historical Trend Chart */}
+      <section className="chart-section">
+        <HistoricalTrendChart
+          data={historicalTrend?.data ?? []}
+          isRealData={historicalTrend?.hasEnoughData ?? false}
+        />
+      </section>
+
+      {/* Land Comparison and Park Hours */}
+      <section className="chart-section charts-row">
+        <LandComparisonChart
+          data={landComparison?.data ?? []}
+          isRealData={landComparison?.hasEnoughData ?? false}
+          parks={disneyParks}
+          selectedPark={selectedLandPark}
+          onParkChange={setSelectedLandPark}
+        />
+        <ParkHoursChart
+          data={parkHours?.data ?? []}
+          summary={parkHours?.summary ?? null}
+          isRealData={parkHours?.hasEnoughData ?? false}
+        />
+      </section>
+
       {/* Weekly and Hourly Patterns */}
       <section className="chart-section charts-row">
-        <WeeklyTrendChart />
-        <HourlyPatternChart />
+        <WeeklyTrendChart
+          data={weeklyChartData}
+          isRealData={weeklyPatterns?.hasEnoughData ?? false}
+        />
+        <HourlyPatternChart
+          data={hourlyChartData}
+          isRealData={hourlyPatterns?.hasEnoughData ?? false}
+        />
       </section>
 
       {/* Tips Section */}
@@ -316,7 +779,7 @@ export default function AnalyticsDashboard() {
           <div className="tip-card">
             <span className="tip-icon">📱</span>
             <h4>Check This Dashboard</h4>
-            <p>We update every 5 minutes. Check current wait times before heading to your next ride.</p>
+            <p>We update every 15 minutes. Check current wait times before heading to your next ride.</p>
           </div>
           <div className="tip-card">
             <span className="tip-icon">🎢</span>
