@@ -173,6 +173,7 @@ export interface OptimizationInput {
     ropeDropMode?: boolean; // Optimize for rope drop strategy
     parkId?: number; // Queue-Times park ID for rope drop/entertainment data
     ropeDropTarget?: string; // User's selected ride to prioritize at rope drop
+    selectedStrategy?: string; // User's selected rope drop strategy ID (e.g., 'headliner-rush')
     parkCloseHour?: number; // Park closing hour (e.g., 21 for 9 PM) - used to cap schedule
     skipFirstLastEnhancement?: boolean; // Skip "kick off your day" / "wrap up" messages (for park hopper)
   };

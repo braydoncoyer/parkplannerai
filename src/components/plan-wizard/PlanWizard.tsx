@@ -15,6 +15,7 @@ import {
   Download,
   Lightbulb,
   Sun,
+  Sunrise,
   Sunset,
   TrendingDown,
   Award,
@@ -68,6 +69,12 @@ import {
 import {
   getRopeDropStrategy,
 } from '../../lib/analytics/data/ropeDropStrategy';
+import {
+  generateStrategies,
+  hasStrategySupport,
+  getStrategyRideOrder,
+} from '../../lib/analytics/optimization/strategyGenerator';
+import StrategyComparison from './StrategyComparison';
 import {
   getResortForPark,
   getOtherParksInResort,
@@ -162,6 +169,11 @@ interface SelectedDate {
   duration: 'full-day' | 'half-day';
   arrivalTime: string;
   ropeDropTarget?: string; // Name of the ride to prioritize at rope drop
+  // Per-day park hopper settings (only used when global isParkHopper is true and multiple days selected)
+  isHopperDay?: boolean;      // Whether this specific day uses park hopper
+  startingParkId?: number;    // Which park to start at on this day
+  secondParkId?: number;      // Which park to hop to (if hopper day)
+  transitionTime?: string;    // When to switch parks (if hopper day)
 }
 
 interface PlanPreferences {
@@ -232,7 +244,7 @@ interface SavedPlan {
   selectedRides: number[];
 }
 
-type Step = 'park' | 'ticket-type' | 'schedule-style' | 'dates' | 'entertainment' | 'rides' | 'report';
+type Step = 'park' | 'ticket-type' | 'strategy' | 'dates' | 'day-config' | 'entertainment' | 'rides' | 'report';
 
 // ============================================================================
 // CONSTANTS
@@ -241,12 +253,32 @@ type Step = 'park' | 'ticket-type' | 'schedule-style' | 'dates' | 'entertainment
 const STEPS: { key: Step; label: string; icon: React.ReactNode }[] = [
   { key: 'park', label: 'Select Park', icon: <MapPin size={18} /> },
   { key: 'ticket-type', label: 'Ticket Type', icon: <Route size={18} /> },
-  { key: 'schedule-style', label: 'Schedule Style', icon: <RefreshCw size={18} /> },
+  { key: 'strategy', label: 'Compare Strategies', icon: <Lightbulb size={18} /> },
   { key: 'dates', label: 'Choose Dates', icon: <Calendar size={18} /> },
   { key: 'entertainment', label: 'Shows', icon: <Sparkles size={18} /> },
   { key: 'rides', label: 'Select Rides', icon: <Star size={18} /> },
   { key: 'report', label: 'Your Plan', icon: <Award size={18} /> },
 ];
+
+/**
+ * Derive schedule preferences from selected strategy
+ * - Headliner Rush: maximize rides, thrill priority
+ * - Wave Rider: maximize rides, balanced priority
+ * - Family First: relaxed pace, family priority
+ */
+function getPreferencesFromStrategy(strategyId: string | null): { allowRerides: boolean; priority: 'thrill' | 'family' | 'shows' | 'balanced' } {
+  switch (strategyId) {
+    case 'headliner-rush':
+      return { allowRerides: true, priority: 'thrill' };
+    case 'wave-rider':
+      return { allowRerides: true, priority: 'balanced' };
+    case 'family-first':
+      return { allowRerides: false, priority: 'family' };
+    default:
+      // No strategy selected - default to maximize rides with balanced priority
+      return { allowRerides: true, priority: 'balanced' };
+  }
+}
 
 // Parks that have nighttime entertainment (fireworks/shows) and parades
 const PARK_ENTERTAINMENT_SUPPORT: Record<number, { hasFireworks: boolean; hasParade: boolean; fireworksName?: string; paradeName?: string }> = {
@@ -1087,12 +1119,16 @@ function DateSelection({
   onUpdateDate,
   selectedPark,
   parkHoursMap,
+  selectedStrategy,
+  onChangeStrategy,
 }: {
   selectedDates: SelectedDate[];
   onToggleDate: (date: Date) => void;
   onUpdateDate: (date: Date, updates: Partial<SelectedDate>) => void;
   selectedPark: number | null;
   parkHoursMap: Record<string, ParkHours>;
+  selectedStrategy: string | null;
+  onChangeStrategy: () => void;
 }) {
   const today = new Date();
   const [viewMonth, setViewMonth] = useState(today.getMonth());
@@ -1347,11 +1383,55 @@ function DateSelection({
                         })()}
                       </div>
 
-                      {/* Rope Drop Target Selector */}
+                      {/* Rope Drop Target Selector or Strategy Summary */}
                       {sd.arrivalTime === 'rope-drop' && selectedPark && (() => {
-                        const strategy = getRopeDropStrategy(selectedPark);
-                        if (!strategy) return null;
+                        const ropeDropData = getRopeDropStrategy(selectedPark);
+                        if (!ropeDropData) return null;
 
+                        // If a strategy was selected, show a summary instead of the target picker
+                        if (selectedStrategy && hasStrategySupport(selectedPark)) {
+                          const strategyResult = generateStrategies(selectedPark, sd.date);
+                          const activeStrategy = strategyResult.strategies.find(s => s.id === selectedStrategy);
+
+                          if (activeStrategy) {
+                            return (
+                              <div className="pw-strategy-summary">
+                                <div className="pw-strategy-summary-header">
+                                  <Zap size={16} />
+                                  <span>Your Rope Drop Strategy</span>
+                                </div>
+                                <div className="pw-strategy-summary-card">
+                                  <div className="pw-strategy-summary-name">{activeStrategy.name}</div>
+                                  <p className="pw-strategy-summary-desc">{activeStrategy.description}</p>
+                                  <div className="pw-strategy-summary-rides">
+                                    {activeStrategy.rides.slice(0, 3).map((ride, idx) => (
+                                      <div key={ride.name} className="pw-strategy-summary-ride">
+                                        <span className="pw-strategy-summary-num">{idx + 1}</span>
+                                        <span className="pw-strategy-summary-ride-name">{ride.name}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                  <div className="pw-strategy-summary-stats">
+                                    <span>~{activeStrategy.totalWaitTime} min total wait</span>
+                                    {activeStrategy.totalTimeSaved > 0 && (
+                                      <span className="pw-strategy-summary-savings">
+                                        Saves {activeStrategy.totalTimeSaved} min vs midday
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                                <button
+                                  className="pw-strategy-summary-change"
+                                  onClick={onChangeStrategy}
+                                >
+                                  Change strategy
+                                </button>
+                              </div>
+                            );
+                          }
+                        }
+
+                        // No strategy selected - show the individual target picker
                         return (
                           <div className="pw-rope-drop-selector">
                             <div className="pw-rope-drop-header">
@@ -1362,7 +1442,7 @@ function DateSelection({
                               Choose one ride to prioritize when the gates open
                             </p>
                             <div className="pw-rope-drop-targets">
-                              {strategy.targets.map((target) => {
+                              {ropeDropData.targets.map((target) => {
                                 const timeSaved = target.typicalMiddayWait - target.typicalRopeDropWait;
                                 const isSelected = sd.ropeDropTarget === target.rideName;
 
@@ -1396,9 +1476,9 @@ function DateSelection({
                                 );
                               })}
                             </div>
-                            {strategy.generalTips[0] && (
+                            {ropeDropData.generalTips[0] && (
                               <p className="pw-rope-drop-tip">
-                                💡 {strategy.generalTips[0]}
+                                💡 {ropeDropData.generalTips[0]}
                               </p>
                             )}
                           </div>
@@ -1412,6 +1492,260 @@ function DateSelection({
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// MULTI-DAY PARK HOPPER CONFIGURATION
+// ============================================================================
+
+interface DayConfigProps {
+  selectedDates: SelectedDate[];
+  selectedPark: number;
+  parks: Park[];
+  onUpdateDate: (date: Date, updates: Partial<SelectedDate>) => void;
+}
+
+function MultiDayHopperConfig({
+  selectedDates,
+  selectedPark,
+  parks,
+  onUpdateDate,
+}: DayConfigProps) {
+  const [expandedDay, setExpandedDay] = useState<string | null>(null);
+  const resortConfig = getResortForPark(selectedPark);
+  const resortParks = resortConfig?.parks || [];
+
+  // Sort dates chronologically
+  const sortedDates = [...selectedDates].sort(
+    (a, b) => a.date.getTime() - b.date.getTime()
+  );
+
+  // Initialize days with default values if not set
+  useEffect(() => {
+    for (const sd of sortedDates) {
+      if (sd.isHopperDay === undefined) {
+        const otherParks = resortParks.filter(p => p.id !== selectedPark);
+        onUpdateDate(sd.date, {
+          isHopperDay: true,
+          startingParkId: selectedPark,
+          secondParkId: otherParks.length > 0 ? otherParks[0].id : undefined,
+          transitionTime: '2:00 PM',
+        });
+      }
+    }
+  }, []);
+
+  const getParkInfo = (parkId: number) => resortParks.find(p => p.id === parkId);
+  const getOtherParks = (parkId: number) => resortParks.filter(p => p.id !== parkId);
+
+  const formatDateCompact = (date: Date) => {
+    const weekday = date.toLocaleDateString('en-US', { weekday: 'short' });
+    const month = date.toLocaleDateString('en-US', { month: 'short' });
+    const day = date.getDate();
+    return { weekday, month, day };
+  };
+
+  const transitionTimes = ['11 AM', '12 PM', '1 PM', '2 PM', '3 PM', '4 PM'];
+
+  const toggleExpand = (dateKey: string) => {
+    setExpandedDay(expandedDay === dateKey ? null : dateKey);
+  };
+
+  // Apply settings to all days
+  const applyToAll = (isHopper: boolean) => {
+    sortedDates.forEach(sd => {
+      const otherParks = getOtherParks(sd.startingParkId || selectedPark);
+      onUpdateDate(sd.date, {
+        isHopperDay: isHopper,
+        secondParkId: isHopper && otherParks.length > 0 ? otherParks[0].id : undefined,
+      });
+    });
+  };
+
+  return (
+    <div className="pw-section pw-itinerary-section">
+      <div className="pw-section-header">
+        <h2>Plan Your Days</h2>
+        <p>Configure each day's park visits. Click a day to customize.</p>
+      </div>
+
+      {/* Quick apply buttons */}
+      <div className="pw-itinerary-quick-actions">
+        <button
+          className="pw-quick-apply-btn"
+          onClick={() => applyToAll(true)}
+        >
+          <Route size={14} />
+          All days: Park Hopper
+        </button>
+        <button
+          className="pw-quick-apply-btn"
+          onClick={() => applyToAll(false)}
+        >
+          <MapPin size={14} />
+          All days: Single Park
+        </button>
+      </div>
+
+      {/* Itinerary list */}
+      <div className="pw-itinerary-list">
+        {sortedDates.map((sd, idx) => {
+          const dateKey = sd.date.toISOString();
+          const isExpanded = expandedDay === dateKey;
+          const isHopper = sd.isHopperDay !== false;
+          const startPark = getParkInfo(sd.startingParkId || selectedPark);
+          const secondPark = sd.secondParkId ? getParkInfo(sd.secondParkId) : null;
+          const availableParks = getOtherParks(sd.startingParkId || selectedPark);
+          const { weekday, month, day } = formatDateCompact(sd.date);
+
+          return (
+            <div
+              key={dateKey}
+              className={`pw-itinerary-day ${isExpanded ? 'expanded' : ''} ${isHopper ? 'hopper' : 'single'}`}
+            >
+              {/* Compact summary row - always visible */}
+              <div
+                className="pw-itinerary-row"
+                onClick={() => toggleExpand(dateKey)}
+              >
+                {/* Date badge */}
+                <div className="pw-itinerary-date">
+                  <span className="pw-itinerary-day-num">{day}</span>
+                  <span className="pw-itinerary-day-label">{weekday}</span>
+                </div>
+
+                {/* Journey visualization */}
+                <div className="pw-itinerary-journey">
+                  <span className="pw-journey-badge start">{startPark?.shortName || '?'}</span>
+                  {isHopper && (
+                    <>
+                      <span className="pw-journey-arrow">→</span>
+                      <span className="pw-journey-badge end">{secondPark?.shortName || '?'}</span>
+                      <span className="pw-journey-time">@ {sd.transitionTime || '2 PM'}</span>
+                    </>
+                  )}
+                  {!isHopper && (
+                    <span className="pw-journey-single">all day</span>
+                  )}
+                </div>
+
+                {/* Type indicator & expand button */}
+                <div className="pw-itinerary-actions">
+                  <span className={`pw-type-pill ${isHopper ? 'hopper' : 'single'}`}>
+                    {isHopper ? 'Hopper' : 'Single'}
+                  </span>
+                  <ChevronRight
+                    size={18}
+                    className={`pw-expand-icon ${isExpanded ? 'rotated' : ''}`}
+                  />
+                </div>
+              </div>
+
+              {/* Expanded edit panel */}
+              {isExpanded && (
+                <div className="pw-itinerary-edit">
+                  {/* Type toggle */}
+                  <div className="pw-edit-row">
+                    <span className="pw-edit-label">Day type</span>
+                    <div className="pw-toggle-pills">
+                      <button
+                        className={`pw-pill ${!isHopper ? 'active' : ''}`}
+                        onClick={() => onUpdateDate(sd.date, { isHopperDay: false })}
+                      >
+                        Single Park
+                      </button>
+                      <button
+                        className={`pw-pill ${isHopper ? 'active' : ''}`}
+                        onClick={() => {
+                          const others = getOtherParks(sd.startingParkId || selectedPark);
+                          onUpdateDate(sd.date, {
+                            isHopperDay: true,
+                            secondParkId: sd.secondParkId || (others.length > 0 ? others[0].id : undefined),
+                          });
+                        }}
+                      >
+                        Park Hopper
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Start park */}
+                  <div className="pw-edit-row">
+                    <span className="pw-edit-label">{isHopper ? 'Start at' : 'Visit'}</span>
+                    <div className="pw-park-pills">
+                      {resortParks.map(park => (
+                        <button
+                          key={park.id}
+                          className={`pw-park-pill ${(sd.startingParkId || selectedPark) === park.id ? 'active' : ''}`}
+                          onClick={() => {
+                            const others = resortParks.filter(p => p.id !== park.id);
+                            onUpdateDate(sd.date, {
+                              startingParkId: park.id,
+                              secondParkId: sd.secondParkId === park.id
+                                ? (others.length > 0 ? others[0].id : undefined)
+                                : sd.secondParkId,
+                            });
+                          }}
+                        >
+                          <span className="pw-park-pill-short">{park.shortName}</span>
+                          <span className="pw-park-pill-name">{park.name}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Hop to park (only if hopper) */}
+                  {isHopper && availableParks.length > 0 && (
+                    <div className="pw-edit-row">
+                      <span className="pw-edit-label">Then hop to</span>
+                      <div className="pw-park-pills">
+                        {availableParks.map(park => (
+                          <button
+                            key={park.id}
+                            className={`pw-park-pill ${sd.secondParkId === park.id ? 'active' : ''}`}
+                            onClick={() => onUpdateDate(sd.date, { secondParkId: park.id })}
+                          >
+                            <span className="pw-park-pill-short">{park.shortName}</span>
+                            <span className="pw-park-pill-name">{park.name}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Transition time (only if hopper) */}
+                  {isHopper && (
+                    <div className="pw-edit-row">
+                      <span className="pw-edit-label">Switch at</span>
+                      <div className="pw-time-pills">
+                        {transitionTimes.map(time => (
+                          <button
+                            key={time}
+                            className={`pw-time-pill ${sd.transitionTime === time ? 'active' : ''}`}
+                            onClick={() => onUpdateDate(sd.date, { transitionTime: time })}
+                          >
+                            {time}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Travel time note */}
+      {resortConfig && (
+        <p className="pw-itinerary-note">
+          <Clock size={14} />
+          Travel between {resortConfig.resortName} parks takes ~{resortConfig.transitionTime} min
+        </p>
+      )}
     </div>
   );
 }
@@ -1626,32 +1960,6 @@ function RideSelection({
           <div className="pw-preferences-card">
             <h4>Optimization Preferences</h4>
 
-            <div className="pw-pref-group">
-              <label>Experience Priority</label>
-              <div className="pw-pref-options">
-                {[
-                  { value: 'balanced', label: 'Balanced Mix', icon: <Zap size={16} /> },
-                  { value: 'thrill', label: 'Thrill Seeker', icon: <Award size={16} /> },
-                  { value: 'family', label: 'Family Fun', icon: <Star size={16} /> },
-                  { value: 'shows', label: 'Shows First', icon: <Sparkles size={16} /> },
-                ].map((opt) => (
-                  <button
-                    key={opt.value}
-                    className={`pw-pref-btn ${preferences.priority === opt.value ? 'active' : ''}`}
-                    onClick={() =>
-                      onPreferencesChange({
-                        ...preferences,
-                        priority: opt.value as PlanPreferences['priority'],
-                      })
-                    }
-                  >
-                    {opt.icon}
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
             <div className="pw-pref-toggle">
               <label>
                 <input
@@ -1744,31 +2052,6 @@ function RideSelection({
             {/* Preferences */}
             <div className="pw-preferences-card">
               <h4>Optimization Preferences</h4>
-              <div className="pw-pref-group">
-                <label>Experience Priority</label>
-                <div className="pw-pref-options">
-                  {[
-                    { value: 'balanced', label: 'Balanced Mix', icon: <Zap size={16} /> },
-                    { value: 'thrill', label: 'Thrill Seeker', icon: <Award size={16} /> },
-                    { value: 'family', label: 'Family Fun', icon: <Star size={16} /> },
-                    { value: 'shows', label: 'Shows First', icon: <Sparkles size={16} /> },
-                  ].map((opt) => (
-                    <button
-                      key={opt.value}
-                      className={`pw-pref-btn ${preferences.priority === opt.value ? 'active' : ''}`}
-                      onClick={() =>
-                        onPreferencesChange({
-                          ...preferences,
-                          priority: opt.value as PlanPreferences['priority'],
-                        })
-                      }
-                    >
-                      {opt.icon}
-                      {opt.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
               <div className="pw-pref-toggle">
                 <label>
                   <input
@@ -2395,6 +2678,16 @@ export default function PlanWizard() {
   // Schedule style preferences
   const [allowRerides, setAllowRerides] = useState(true); // Whether to fill schedule with re-rides
 
+  // Strategy selection
+  const [selectedStrategy, setSelectedStrategy] = useState<string | null>(null);
+
+  // Derive allowRerides and priority from selected strategy
+  useEffect(() => {
+    const { allowRerides: derivedAllowRerides, priority: derivedPriority } = getPreferencesFromStrategy(selectedStrategy);
+    setAllowRerides(derivedAllowRerides);
+    setPreferences(prev => ({ ...prev, priority: derivedPriority }));
+  }, [selectedStrategy]);
+
   // Load saved plans on mount
   useEffect(() => {
     setSavedPlans(getSavedPlans());
@@ -2667,24 +2960,49 @@ export default function PlanWizard() {
     }
 
     // Use combinedRides for park hopper support
+    // Add hourly predictions to each ride for accurate wait time estimates
     const selectedRideObjects = combinedRides
       .filter((r) => selectedRides.includes(r.id))
-      .map((ride) => ({
-        id: ride.id,
-        name: ride.name,
-        land: ride.land,
-        isOpen: ride.is_open,
-        waitTime: ride.wait_time,
-        parkId: ride.parkId,
-        parkShortName: ride.parkShortName,
-      }));
+      .map((ride) => {
+        // Generate hourly predictions based on ride popularity and visit date
+        const predictions = predictRideWaitTimes(
+          {
+            id: ride.id,
+            name: ride.name,
+            land: ride.land,
+            isOpen: ride.is_open,
+            waitTime: ride.wait_time,
+          },
+          sortedDates[0]?.date || new Date()
+        );
+        return {
+          id: ride.id,
+          name: ride.name,
+          land: ride.land,
+          isOpen: ride.is_open,
+          waitTime: ride.wait_time,
+          parkId: ride.parkId,
+          parkShortName: ride.parkShortName,
+          hourlyPredictions: predictions.hourlyPredictions,
+        };
+      });
 
-    // Headliner patterns for Epic Universe / Universal
+    // Headliner patterns for Epic Universe / Universal / Disney
     const headlinerPatterns = [
+      // Universal
       'battle', 'ministry', 'hagrid', 'velocicoaster', 'forbidden journey',
       'gringotts', 'kong', 'mummy', 'transformers', 'jimmy fallon',
       'mario kart', 'donkey kong', 'yoshi', 'toadstool', 'bowser',
-      'how to train', 'hiccup', 'dragon', 'starfall', 'stardust'
+      'how to train', 'hiccup', 'dragon', 'starfall', 'stardust',
+      // Disney - Hollywood Studios
+      'rise', 'star wars', 'slinky', 'tower of terror', 'rockin', 'mickey',
+      // Disney - Magic Kingdom
+      'seven dwarfs', 'mine train', 'space mountain', 'tron', 'big thunder',
+      'splash', 'tiana', 'pirates', 'haunted mansion', 'jungle cruise',
+      // Disney - EPCOT
+      'guardians', 'cosmic rewind', 'test track', 'frozen', 'remy',
+      // Disney - Animal Kingdom
+      'flight of passage', 'avatar', 'expedition everest', 'kilimanjaro'
     ];
 
     // Categorize rides by popularity
@@ -2943,18 +3261,24 @@ export default function PlanWizard() {
 
         // PARK HOPPER MODE: Dynamic multi-phase scheduling
         // Goal: Complete ALL selected rides while minimizing transition waste
-        if (isParkHopper && secondParkId && selectedPark) {
-          // All rides by park
-          const park1Rides = uniqueRides.filter(r => r.parkId === selectedPark);
-          const park2Rides = uniqueRides.filter(r => r.parkId === secondParkId);
+        // Use per-day settings if available, otherwise fall back to global settings
+        const dayIsHopper = sd.isHopperDay ?? isParkHopper;
+        const dayStartingPark = sd.startingParkId ?? selectedPark;
+        const daySecondPark = sd.secondParkId ?? secondParkId;
+        const dayTransitionTime = sd.transitionTime ?? transitionTime;
+
+        if (dayIsHopper && daySecondPark && dayStartingPark) {
+          // All rides by park (using per-day park settings)
+          const park1Rides = uniqueRides.filter(r => r.parkId === dayStartingPark);
+          const park2Rides = uniqueRides.filter(r => r.parkId === daySecondPark);
 
           // Track scheduled ride IDs (separate from seenRideIds which tracks re-rides)
           const scheduledRideIds = new Set<number | string>();
 
-          // Park info
-          const travelMinutes = getTransitionTime(selectedPark, secondParkId);
-          const park1Name = parks.find(p => p.id === selectedPark)?.name || 'Park 1';
-          const park2Name = parks.find(p => p.id === secondParkId)?.name || 'Park 2';
+          // Park info (using per-day park settings)
+          const travelMinutes = getTransitionTime(dayStartingPark, daySecondPark);
+          const park1Name = parks.find(p => p.id === dayStartingPark)?.name || 'Park 1';
+          const park2Name = parks.find(p => p.id === daySecondPark)?.name || 'Park 2';
           const parkOpenHour = dayParkHours?.openHour || 9;
           const parkCloseMinutes = (parkCloseHour || 22) * 60;
 
@@ -3017,6 +3341,7 @@ export default function PlanWizard() {
                 ropeDropTarget: ropeDropTarget,
                 parkCloseHour: endHour,
                 skipFirstLastEnhancement: true, // We'll handle first/last messaging after combining parks
+                selectedStrategy: selectedStrategy || undefined, // Use selected rope drop strategy
               },
             }, convex);
 
@@ -3110,7 +3435,7 @@ export default function PlanWizard() {
           // ============================================================
           // DETERMINE OPTIMAL HOP TIME (Dynamic based on wait times)
           // ============================================================
-          const userTargetHour = parseTransitionTimeToHour(transitionTime);
+          const userTargetHour = parseTransitionTimeToHour(dayTransitionTime);
 
           // Find the optimal hop time by analyzing wait times
           // Check hours around the user's target (±2 hours)
@@ -3229,7 +3554,7 @@ export default function PlanWizard() {
 
           await scheduleRidesAtPark(
             park1Rides,
-            selectedPark,
+            dayStartingPark,
             parkOpenHour,
             actualTransitionHour,
             true, // rope drop mode
@@ -3252,7 +3577,7 @@ export default function PlanWizard() {
           // Schedule ALL remaining Park 2 rides until park close
           await scheduleRidesAtPark(
             park2Rides,
-            secondParkId,
+            daySecondPark,
             park2ArrivalHour,
             parkCloseHour || 22,
             false,
@@ -3322,6 +3647,9 @@ export default function PlanWizard() {
 
         } else {
           // STANDARD SINGLE-PARK MODE
+          // Use per-day starting park if set, otherwise fall back to global selectedPark
+          const singleDayPark = sd.startingParkId ?? selectedPark;
+
           // Convert 'rope-drop' to actual park opening time
           let actualArrivalTime = sd.arrivalTime;
           if (sd.arrivalTime === 'rope-drop' && dayParkHours?.openHour) {
@@ -3338,9 +3666,11 @@ export default function PlanWizard() {
               priority: preferences.priority,
               includeBreaks: false, // We handle breaks manually to avoid overlap
               ropeDropMode: isRopeDropMode, // Enable rope drop optimization
-              parkId: selectedPark || undefined, // Queue-Times park ID for rope drop data
+              parkId: singleDayPark || undefined, // Queue-Times park ID for rope drop data (per-day or global)
               ropeDropTarget: sd.ropeDropTarget, // User's selected rope drop priority ride
               parkCloseHour, // Pass actual park closing hour to cap schedule
+              selectedStrategy: selectedStrategy || undefined, // Use selected rope drop strategy
+              skipFirstLastEnhancement: allowRerides && fillRides.length > 0, // Skip if we'll add fill rides later
             },
           }, convex);
 
@@ -3418,10 +3748,25 @@ export default function PlanWizard() {
           ? dayParkHours.closeHour * 60 + (dayParkHours.closeMinute || 0)
           : 22 * 60;
 
+        // Check if ALL rides assigned to THIS DAY have been scheduled before adding fill rides
+        // IMPORTANT: Check against uniqueRides (this day's rides), not selectedRideObjects (all days)
+        // This ensures we don't add re-rides while user-selected rides for today remain unscheduled
+        const scheduledRideNamesBeforeFill = new Set(
+          items.filter(item => item.type === 'ride').map(item =>
+            item.name.replace(' ★', '').toLowerCase()
+          )
+        );
+        // Check if any of today's assigned rides are missing from the schedule
+        const missingTodayRides = uniqueRides.filter(ride =>
+          !scheduledRideNamesBeforeFill.has(ride.name.toLowerCase())
+        );
+        const allUserRidesScheduledBeforeFill = missingTodayRides.length === 0;
+
         // Only add fill rides if user wants re-rides to fill their schedule
         // Skip fill rides in park hopper mode - we already schedule all rides from both parks
         // and don't want to suggest returning to the first park after transitioning
-        if (allowRerides && fillRides.length > 0 && !isParkHopper) {
+        // IMPORTANT: Only add fill rides if ALL user-selected rides are already scheduled
+        if (allowRerides && fillRides.length > 0 && !dayIsHopper && allUserRidesScheduledBeforeFill) {
           const lastItem = items[lastRideIndex];
           let currentTime = lastItem?.time || '4:00 PM';
           // Track the previous ride's wait for accurate timing
@@ -3435,7 +3780,21 @@ export default function PlanWizard() {
             // Calculate time offset: previous wait + ride duration + walk time
             const timeOffset = previousWait + RIDE_DURATION + walkTime;
             currentTime = getNextTime(currentTime, timeOffset);
-            const fillRideWait = Math.max(15, (fillRide.waitTime || 30) * 0.8); // Evening waits often lower
+
+            // Get predicted wait using hourly predictions if available
+            // Parse current time to get hour for prediction lookup
+            const timeMatch = currentTime.match(/(\d+):(\d+)\s*(AM|PM)/i);
+            let currentHour = 17; // Default to 5pm
+            if (timeMatch) {
+              currentHour = parseInt(timeMatch[1]);
+              if (timeMatch[3].toUpperCase() === 'PM' && currentHour !== 12) currentHour += 12;
+              if (timeMatch[3].toUpperCase() === 'AM' && currentHour === 12) currentHour = 0;
+            }
+            // Use predicted wait from hourly predictions, with evening discount (0.8)
+            const predictedWait = fillRide.hourlyPredictions
+              ? getPredictedWaitForHour({ hourlyPredictions: fillRide.hourlyPredictions } as any, currentHour)
+              : (fillRide.waitTime || 30);
+            const fillRideWait = Math.max(15, predictedWait * 0.8); // Evening waits often lower
 
             // Check if this ride would START or EXTEND past park closing
             const rideStartMinutes = parseTimeForClose(currentTime);
@@ -3452,7 +3811,9 @@ export default function PlanWizard() {
             }
 
             // Check if this is actually a re-ride (seen before in trip)
-            const isReride = seenRideIds.has(fillRide.id);
+            // NOTE: Convert ID to number since seenRideIds is Set<number>
+            const fillRideIdNum = typeof fillRide.id === 'number' ? fillRide.id : parseInt(String(fillRide.id));
+            const isReride = seenRideIds.has(fillRideIdNum);
 
             items.push({
               time: currentTime,
@@ -3467,11 +3828,61 @@ export default function PlanWizard() {
             });
 
             // Mark this ride as seen
-            seenRideIds.add(fillRide.id);
+            seenRideIds.add(fillRideIdNum);
 
             // Update tracking for next iteration's timing calculation
             previousWait = Math.round(fillRideWait);
             previousLand = fillRide.land || null;
+          }
+        }
+
+        // ============================================================
+        // POST-PROCESS: Clean up schedule after fill rides are added
+        // ============================================================
+
+        // 1. Remove redundant "Explore & Relax" cards that are now followed by rides
+        // These gap-fill suggestions become redundant when fill rides occupy that time
+        const cleanedItems: typeof items = [];
+        for (let idx = 0; idx < items.length; idx++) {
+          const item = items[idx];
+          const nextItem = items[idx + 1];
+
+          // Skip "Explore & Relax" cards if the next item is a ride
+          if (item.type === 'break' && item.name === 'Explore & Relax' && nextItem?.type === 'ride') {
+            continue; // Skip this exploration card
+          }
+          cleanedItems.push(item);
+        }
+        // Replace items with cleaned version
+        items.length = 0;
+        items.push(...cleanedItems);
+
+        // 2. Re-apply first/last ride messaging now that fill rides are included
+        const finalRideItems = items.filter(item => item.type === 'ride');
+        if (finalRideItems.length > 0) {
+          const firstRide = finalRideItems[0];
+          const lastRide = finalRideItems[finalRideItems.length - 1];
+
+          // Find their indices in the items array
+          const firstRideIdx = items.indexOf(firstRide);
+          const lastRideIdx = items.indexOf(lastRide);
+
+          // Add first ride messaging (if not already a rope drop target with 🎯)
+          if (firstRideIdx >= 0 && !items[firstRideIdx].notes?.includes('🎯')) {
+            items[firstRideIdx] = {
+              ...items[firstRideIdx],
+              notes: `🌅 Kick off your day! ${items[firstRideIdx].notes || ''}`.trim(),
+            };
+          }
+
+          // Add last ride messaging (only if different from first)
+          if (lastRideIdx >= 0 && lastRideIdx !== firstRideIdx) {
+            // Remove any existing "wrap up" message that might have been added incorrectly
+            const existingNotes = items[lastRideIdx].notes?.replace(/🌙 Wrap up your adventure[^.]*\.\s*/g, '').trim() || '';
+            items[lastRideIdx] = {
+              ...items[lastRideIdx],
+              notes: `🌙 Wrap up your adventure! ${existingNotes}`.trim(),
+            };
           }
         }
 
@@ -3897,112 +4308,181 @@ export default function PlanWizard() {
 
         // =============================================
         // FILL END-OF-DAY GAP
-        // If there's significant time remaining before park closes, fill it
-        // Only if user wants re-rides to fill their schedule
-        // (parkCloseMinutes and getItemEndTime already defined above)
+        // Priority order:
+        // 1. FIRST: Schedule any missing user-selected rides (NEVER skip user selections)
+        // 2. THEN: If allowRerides, add re-rides
+        // 3. FINALLY: Evening Exploration only if Family strategy AND all rides scheduled AND ~1hr left
         // =============================================
         const lastItem = items[items.length - 1];
         const lastItemEndMinutes = lastItem ? getItemEndTime(lastItem) : parseTimeToMinutes(sd.arrivalTime);
         const gapMinutes = parkCloseMinutes - lastItemEndMinutes;
 
-        // If there's more than 60 minutes until park closes and user wants re-rides, fill the gap
-        if (allowRerides && gapMinutes > 60) {
+        // Check if there's time to fill
+        if (gapMinutes > 30) {
           let currentMinutes = lastItemEndMinutes + 10; // Start 10 min after last item ends
           let previousLand = lastItem?.land || null;
 
-          // Determine how many activities we can fit
-          // Each re-ride takes ~35 min (15 wait + 10 ride + 10 walk), shopping break ~30 min
-          const activitiesToAdd = Math.floor((gapMinutes - 30) / 40); // Leave 30 min buffer before close
+          // STEP 1: Find ALL user-selected rides that haven't been scheduled yet
+          // Check BOTH uniqueRides (this day's assigned rides) AND selectedRideObjects (all selections)
+          // This ensures we catch rides that were assigned but not scheduled by the optimizer
+          const scheduledRideNames = new Set(
+            items.filter(item => item.type === 'ride').map(item => item.name.replace(' ★', '').toLowerCase())
+          );
 
-          // Get favorite rides for potential re-rides - ONLY rides already seen today
-          // Use rides with higher wait times as proxy for popularity (more popular = longer waits)
-          const sortedByPopularity = [...allDayRides]
-            .filter(r => seenRideIds.has(r.id)) // Only include rides already ridden
-            .sort((a, b) => (b.waitTime || 0) - (a.waitTime || 0));
-          // Take top half of rides as "favorites" for re-rides
-          const favoriteRides = sortedByPopularity.slice(0, Math.max(2, Math.ceil(sortedByPopularity.length / 2)));
+          // First, get rides from THIS day that weren't scheduled (highest priority)
+          const missingFromThisDay = uniqueRides.filter(
+            ride => !scheduledRideNames.has(ride.name.toLowerCase())
+          );
 
-          // Mix of re-rides and exploration
-          for (let actIdx = 0; actIdx < Math.min(activitiesToAdd, 5); actIdx++) {
-            // Stop if we're within 45 min of park close
-            if (currentMinutes + 45 > parkCloseMinutes) break;
+          // Then get any OTHER user-selected rides not scheduled anywhere in the trip
+          // NOTE: Convert ride.id to number since seenRideIds is Set<number>
+          const missingFromOtherDays = selectedRideObjects.filter(
+            ride => {
+              const rideIdNum = typeof ride.id === 'number' ? ride.id : parseInt(String(ride.id));
+              return !seenRideIds.has(rideIdNum) &&
+                     !scheduledRideNames.has(ride.name.toLowerCase()) &&
+                     !missingFromThisDay.some(r => r.id === ride.id);
+            }
+          );
 
-            // Alternate between re-rides and exploration/shopping
-            const isEvenActivity = actIdx % 2 === 0;
+          // Combine: this day's missing rides first, then others
+          const missingUserRides = [...missingFromThisDay, ...missingFromOtherDays];
 
-            if (isEvenActivity && favoriteRides.length > 0) {
-              // Add a re-ride
-              const rideIndex = actIdx % favoriteRides.length;
-              const reRide = favoriteRides[rideIndex];
-              const walkTime = getWalkTimeBetweenLands(previousLand, reRide.land);
+          // STEP 2: Try to fit missing user-selected rides FIRST (MUST schedule these before re-rides)
+          for (const missingRide of missingUserRides) {
+            if (currentMinutes + 20 > parkCloseMinutes) break;
 
-              // Evening waits are typically lower
-              const eveningWait = Math.max(10, Math.round((reRide.waitTime || 30) * 0.6));
-              const RIDE_DURATION = 10;
+            const walkTime = getWalkTimeBetweenLands(previousLand, missingRide.land);
+            // Use predicted wait from hourly predictions if available, with evening discount (0.6)
+            const missingRideHour = Math.floor(currentMinutes / 60);
+            const predictedMissingWait = missingRide.hourlyPredictions
+              ? getPredictedWaitForHour({ hourlyPredictions: missingRide.hourlyPredictions } as any, missingRideHour)
+              : (missingRide.waitTime || 30);
+            const eveningWait = Math.max(10, Math.round(predictedMissingWait * 0.6));
+            const RIDE_DURATION = 10;
 
-              // Check if we're already past park close
-              if (currentMinutes >= parkCloseMinutes) {
-                break;
+            const rideEndMinutes = currentMinutes + walkTime + eveningWait + RIDE_DURATION;
+            if (rideEndMinutes > parkCloseMinutes) {
+              continue; // Try next ride instead of stopping
+            }
+
+            currentMinutes += walkTime;
+
+            items.push({
+              time: minutesToTimeString(currentMinutes),
+              type: 'ride',
+              name: missingRide.name,
+              expectedWait: eveningWait,
+              notes: 'Catching this ride in the evening when lines are shorter!',
+              land: missingRide.land,
+              isReride: false,
+            });
+
+            // Convert ID to number since seenRideIds is Set<number>
+            const missingRideIdNum = typeof missingRide.id === 'number' ? missingRide.id : parseInt(String(missingRide.id));
+            seenRideIds.add(missingRideIdNum);
+            currentMinutes += eveningWait + RIDE_DURATION;
+            previousLand = missingRide.land || null;
+          }
+
+          // STEP 3: Check if ALL missing rides we just tried to schedule actually got scheduled
+          // This directly verifies that missingUserRides were all added - if any were skipped
+          // (due to time constraints), we should NOT add re-rides
+          // Check both by ID (in seenRideIds) AND by name (in items) for robustness
+          const currentScheduledNames = new Set(
+            items.filter(item => item.type === 'ride').map(item => item.name.replace(' ★', '').toLowerCase())
+          );
+          const stillMissingRides = missingUserRides.filter(ride => {
+            const rideIdNum = typeof ride.id === 'number' ? ride.id : parseInt(String(ride.id));
+            const inSeenIds = seenRideIds.has(rideIdNum);
+            const inScheduledNames = currentScheduledNames.has(ride.name.toLowerCase());
+            return !inSeenIds && !inScheduledNames;
+          });
+          const allUserRidesScheduled = stillMissingRides.length === 0;
+          const remainingGap = parkCloseMinutes - currentMinutes;
+          const isFamilyStrategy = selectedStrategy === 'family-first';
+
+          // STEP 4: If re-rides allowed and time remaining, add re-rides
+          // IMPORTANT: Only add re-rides if ALL user-selected rides are scheduled
+          if (allowRerides && remainingGap > 45 && allUserRidesScheduled) {
+            // Get favorite rides for potential re-rides - ONLY rides already seen today
+            // NOTE: Convert ride.id to number since seenRideIds is Set<number>
+            const sortedByPopularity = [...allDayRides]
+              .filter(r => {
+                const rId = typeof r.id === 'number' ? r.id : parseInt(String(r.id));
+                return seenRideIds.has(rId);
+              })
+              .sort((a, b) => (b.waitTime || 0) - (a.waitTime || 0));
+            const favoriteRides = sortedByPopularity.slice(0, Math.max(2, Math.ceil(sortedByPopularity.length / 2)));
+
+            const activitiesToAdd = Math.floor((remainingGap - 30) / 40);
+
+            for (let actIdx = 0; actIdx < Math.min(activitiesToAdd, 3); actIdx++) {
+              if (currentMinutes + 20 > parkCloseMinutes) break;
+
+              if (favoriteRides.length > 0) {
+                const rideIndex = actIdx % favoriteRides.length;
+                const reRide = favoriteRides[rideIndex];
+                const walkTime = getWalkTimeBetweenLands(previousLand, reRide.land);
+                // Use predicted wait from hourly predictions if available, with evening discount (0.6)
+                const reRideHour = Math.floor(currentMinutes / 60);
+                const predictedReRideWait = reRide.hourlyPredictions
+                  ? getPredictedWaitForHour({ hourlyPredictions: reRide.hourlyPredictions } as any, reRideHour)
+                  : (reRide.waitTime || 30);
+                const eveningWait = Math.max(10, Math.round(predictedReRideWait * 0.6));
+                const RIDE_DURATION = 10;
+
+                const rideEndMinutes = currentMinutes + walkTime + eveningWait + RIDE_DURATION;
+                if (rideEndMinutes > parkCloseMinutes) break;
+
+                currentMinutes += walkTime;
+
+                items.push({
+                  time: minutesToTimeString(currentMinutes),
+                  type: 'ride',
+                  name: `${reRide.name} ★`,
+                  expectedWait: eveningWait,
+                  notes: 'Evening re-ride - shorter lines as the day winds down!',
+                  land: reRide.land,
+                  isReride: true,
+                });
+
+                currentMinutes += eveningWait + RIDE_DURATION;
+                previousLand = reRide.land || null;
               }
-
-              // Check if this ride would extend past park closing
-              const rideEndMinutes = currentMinutes + walkTime + eveningWait + RIDE_DURATION;
-              if (rideEndMinutes > parkCloseMinutes) {
-                // This ride would extend past park closing - stop adding activities
-                break;
-              }
-
-              currentMinutes += walkTime;
-
-              items.push({
-                time: minutesToTimeString(currentMinutes),
-                type: 'ride',
-                name: `${reRide.name} ★`,
-                expectedWait: eveningWait,
-                notes: 'Evening re-ride - shorter lines as the day winds down!',
-                land: reRide.land,
-                isReride: true,
-              });
-
-              currentMinutes += eveningWait + RIDE_DURATION; // wait + ride duration
-              previousLand = reRide.land || null;
-            } else {
-              // Add shopping/exploration break
-              const BREAK_DURATION = 30;
-
-              // Check if this break would extend past park closing
-              if (currentMinutes + BREAK_DURATION > parkCloseMinutes) {
-                // Not enough time for a break - stop adding activities
-                break;
-              }
-
-              const currentLand = previousLand || (allDayRides[0]?.land || 'the park');
-              const landActivities = getLandActivities(currentLand);
-              const shopping = landActivities?.shopping[0];
-              const snack = landActivities?.dining.find(d => d.type === 'snack');
-
-              items.push({
-                time: minutesToTimeString(currentMinutes),
-                type: 'break',
-                name: 'Evening Exploration',
-                expectedWait: 0,
-                notes: `Perfect time to browse shops and grab a snack before the park closes.`,
-                land: currentLand,
-                isReride: false,
-                breakDuration: BREAK_DURATION,
-                shoppingName: shopping?.name || 'Nearby shops',
-                shoppingDetail: shopping?.highlights || 'End-of-day souvenirs and gifts',
-                shoppingImage: shopping?.image,
-                diningName: snack?.name,
-                diningDetail: snack?.specialty,
-                diningImage: snack?.image,
-              });
-
-              currentMinutes += BREAK_DURATION;
             }
           }
 
-          // Re-sort after adding re-rides and breaks
+          // STEP 5: Evening Exploration - ONLY if:
+          // - All user-selected rides are scheduled
+          // - Family strategy (relaxed pace)
+          // - Around 1 hour or less remaining
+          const finalRemainingGap = parkCloseMinutes - currentMinutes;
+          if (allUserRidesScheduled && isFamilyStrategy && finalRemainingGap > 30 && finalRemainingGap <= 75) {
+            const currentLand = previousLand || (allDayRides[0]?.land || 'the park');
+            const landActivities = getLandActivities(currentLand);
+            const shopping = landActivities?.shopping[0];
+            const snack = landActivities?.dining.find(d => d.type === 'snack');
+
+            items.push({
+              time: minutesToTimeString(currentMinutes),
+              type: 'break',
+              name: 'Evening Exploration',
+              expectedWait: 0,
+              notes: `Perfect time to browse shops and grab a snack before the park closes.`,
+              land: currentLand,
+              isReride: false,
+              breakDuration: 30,
+              shoppingName: shopping?.name || 'Nearby shops',
+              shoppingDetail: shopping?.highlights || 'End-of-day souvenirs and gifts',
+              shoppingImage: shopping?.image,
+              diningName: snack?.name,
+              diningDetail: snack?.specialty,
+              diningImage: snack?.image,
+            });
+          }
+
+          // Re-sort after adding activities
           items.sort((a, b) => parseTimeToMinutes(a.time) - parseTimeToMinutes(b.time));
         }
 
@@ -4396,6 +4876,7 @@ export default function PlanWizard() {
     setCurrentPlanId(null);
     setIsSaved(false);
     setPreferences({ priority: 'balanced', includeBreaks: true });
+    setSelectedStrategy(null);
   };
 
   const canProceed = () => {
@@ -4408,11 +4889,18 @@ export default function PlanWizard() {
       case 'entertainment':
         // Entertainment is optional - can always proceed
         return true;
-      case 'schedule-style':
-        // Schedule style is a preference - can always proceed
-        return true;
+      case 'strategy':
+        // Strategy selection is optional - must select one to proceed
+        // (skip button also advances, so this ensures Continue button needs selection)
+        return selectedStrategy !== null;
       case 'dates':
         return selectedDates.length > 0;
+      case 'day-config':
+        // Day config is valid if all hopper days have both parks set
+        return selectedDates.every(sd => {
+          if (sd.isHopperDay === false) return true; // Single park days are always valid
+          return sd.startingParkId && sd.secondParkId; // Hopper days need both parks
+        });
       case 'rides':
         return selectedRides.length > 0;
       default:
@@ -4426,25 +4914,50 @@ export default function PlanWizard() {
       return;
     }
     else if (step === 'ticket-type') {
-      setStep('schedule-style');
+      // Go to strategy step if park has strategy support, otherwise dates
+      if (selectedPark && hasStrategySupport(selectedPark)) {
+        setStep('strategy');
+      } else {
+        setStep('dates');
+      }
     }
-    else if (step === 'schedule-style') {
+    else if (step === 'strategy') {
       setStep('dates');
     }
     else if (step === 'dates') {
-      // Move to entertainment step to show available shows for selected dates
+      // If park hopper with multiple days, show day configuration step
+      if (isParkHopper && selectedDates.length > 1) {
+        setStep('day-config');
+      } else {
+        // Move to entertainment step
+        setStep('entertainment');
+      }
+    }
+    else if (step === 'day-config') {
+      // After day config, move to entertainment
       setStep('entertainment');
     }
     else if (step === 'entertainment') {
       // Auto-select rope drop target rides when moving to ride selection
-      const ropeDropTargetNames = selectedDates
+      // This includes both individual rope drop targets AND strategy rides
+      const targetRideNames: string[] = [];
+
+      // Add individual rope drop targets (from dates without strategy)
+      const individualTargets = selectedDates
         .filter(sd => sd.ropeDropTarget)
         .map(sd => sd.ropeDropTarget!.toLowerCase());
+      targetRideNames.push(...individualTargets);
 
-      if (ropeDropTargetNames.length > 0) {
+      // Add strategy rides if a strategy is selected
+      if (selectedStrategy && selectedPark) {
+        const strategyRides = getStrategyRideOrder(selectedStrategy, selectedPark);
+        targetRideNames.push(...strategyRides.map(name => name.toLowerCase()));
+      }
+
+      if (targetRideNames.length > 0) {
         const ridesMatchingTargets = rides.filter(ride => {
           const rideName = ride.name.toLowerCase();
-          return ropeDropTargetNames.some(target =>
+          return targetRideNames.some(target =>
             rideName === target ||
             rideName.includes(target) ||
             target.includes(rideName)
@@ -4468,7 +4981,7 @@ export default function PlanWizard() {
 
   const prevStep = () => {
     if (step === 'ticket-type') setStep('park');
-    else if (step === 'schedule-style') {
+    else if (step === 'strategy') {
       // Go back to ticket-type if it's a Disney park, otherwise park
       if (selectedPark && supportsParkHopper(selectedPark)) {
         setStep('ticket-type');
@@ -4476,8 +4989,25 @@ export default function PlanWizard() {
         setStep('park');
       }
     }
-    else if (step === 'dates') setStep('schedule-style');
-    else if (step === 'entertainment') setStep('dates');
+    else if (step === 'dates') {
+      // Go back to strategy if park supports it, otherwise ticket-type/park
+      if (selectedPark && hasStrategySupport(selectedPark)) {
+        setStep('strategy');
+      } else if (selectedPark && supportsParkHopper(selectedPark)) {
+        setStep('ticket-type');
+      } else {
+        setStep('park');
+      }
+    }
+    else if (step === 'day-config') setStep('dates');
+    else if (step === 'entertainment') {
+      // Go back to day-config if it was shown, otherwise dates
+      if (isParkHopper && selectedDates.length > 1) {
+        setStep('day-config');
+      } else {
+        setStep('dates');
+      }
+    }
     else if (step === 'rides') setStep('entertainment');
     else if (step === 'report') setStep('rides');
   };
@@ -4507,14 +5037,20 @@ export default function PlanWizard() {
               selectedPark={selectedPark}
               onSelect={(parkId) => {
                 setSelectedPark(parkId);
+                setSelectedStrategy(null); // Reset strategy when park changes
                 // Check if this park supports park hopper
                 if (supportsParkHopper(parkId)) {
                   setStep('ticket-type');
                 } else {
-                  // Non-Disney parks skip ticket-type, go to schedule-style
+                  // Non-hopper parks skip ticket-type
                   setIsParkHopper(false);
                   setSecondParkId(null);
-                  setStep('schedule-style');
+                  // Go to strategy if supported, otherwise dates
+                  if (hasStrategySupport(parkId)) {
+                    setStep('strategy');
+                  } else {
+                    setStep('dates');
+                  }
                 }
               }}
             />
@@ -4567,12 +5103,24 @@ export default function PlanWizard() {
           />
         )}
 
-        {step === 'schedule-style' && (
-          <ScheduleStylePreference
-            allowRerides={allowRerides}
-            onReridePrefChange={setAllowRerides}
-          />
-        )}
+        {step === 'strategy' && selectedPark && (() => {
+          const strategyResult = generateStrategies(selectedPark, new Date());
+          return (
+            <StrategyComparison
+              strategies={strategyResult.strategies}
+              selectedStrategy={selectedStrategy}
+              onSelect={(strategyId) => setSelectedStrategy(strategyId)}
+              onSkip={() => {
+                // Use the recommended strategy (first one) by default
+                const recommended = strategyResult.strategies.find(s => s.badge === 'recommended');
+                setSelectedStrategy(recommended?.id || strategyResult.strategies[0]?.id || null);
+                setStep('dates');
+              }}
+              parkName={strategyResult.parkName}
+              isUsingFallbackData={strategyResult.isUsingFallbackData}
+            />
+          );
+        })()}
 
         {step === 'dates' && (
           <DateSelection
@@ -4581,6 +5129,17 @@ export default function PlanWizard() {
             onUpdateDate={updateDate}
             selectedPark={selectedPark}
             parkHoursMap={parkHoursMap}
+            selectedStrategy={selectedStrategy}
+            onChangeStrategy={() => setStep('strategy')}
+          />
+        )}
+
+        {step === 'day-config' && selectedPark && (
+          <MultiDayHopperConfig
+            selectedDates={selectedDates}
+            selectedPark={selectedPark}
+            parks={parks}
+            onUpdateDate={updateDate}
           />
         )}
 

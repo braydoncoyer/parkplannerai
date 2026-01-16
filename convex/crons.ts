@@ -38,4 +38,13 @@ crons.daily(
   {}
 );
 
+// Compute analytics aggregates at 15:00 UTC (1 hour after daily aggregates)
+// Pre-computes hourly, weekly, operator, and insight aggregates for fast reads
+crons.daily(
+  "compute-analytics-aggregates",
+  { hourUTC: 15, minuteUTC: 0 },
+  internal.actions.computeAnalyticsAggregates.run,
+  {}
+);
+
 export default crons;

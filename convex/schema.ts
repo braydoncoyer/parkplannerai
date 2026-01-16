@@ -71,6 +71,47 @@ export default defineSchema({
     .index("by_park_date", ["parkId", "date"])
     .index("by_day_of_week", ["dayOfWeek"]),
 
+  // Pre-computed hourly patterns (average wait by hour of day)
+  hourlyAggregates: defineTable({
+    parkId: v.optional(v.id("parks")), // Optional - null for "all parks"
+    operator: v.string(), // "Disney", "Universal", or "all"
+    dayType: v.string(), // "weekday", "weekend", or "all"
+    hour: v.number(), // 0-23
+    avgWaitTime: v.number(),
+    sampleCount: v.number(),
+    lastUpdated: v.number(),
+  })
+    .index("by_operator_daytype", ["operator", "dayType"])
+    .index("by_park", ["parkId"]),
+
+  // Pre-computed weekly patterns (average wait by day of week)
+  weeklyAggregates: defineTable({
+    operator: v.string(), // "Disney", "Universal", or "all"
+    dayOfWeek: v.number(), // 0-6 (0 = Sunday)
+    avgWaitTime: v.number(),
+    sampleCount: v.number(),
+    lastUpdated: v.number(),
+  }).index("by_operator", ["operator"]),
+
+  // Operator comparison metrics
+  operatorAggregates: defineTable({
+    operator: v.string(), // "Disney" or "Universal"
+    periodDays: v.number(), // 7, 14, 30, etc.
+    avgWaitTime: v.number(),
+    totalSnapshots: v.number(),
+    parksTracked: v.number(),
+    lastUpdated: v.number(),
+  }).index("by_operator_period", ["operator", "periodDays"]),
+
+  // Pre-computed analytics insights
+  analyticsInsights: defineTable({
+    insightType: v.string(), // "best_day", "worst_day", "best_hour", etc.
+    value: v.string(), // The value (e.g., "Tuesday", "9:00 AM")
+    metric: v.number(), // Associated metric (e.g., avg wait)
+    periodDays: v.number(), // Analysis period
+    lastUpdated: v.number(),
+  }).index("by_type", ["insightType"]),
+
   // Park operating hours from ThemeParks.wiki
   parkSchedules: defineTable({
     parkId: v.id("parks"),
