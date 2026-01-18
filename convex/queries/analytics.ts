@@ -8,21 +8,92 @@ const HOUR_LABELS = [
 ];
 
 /**
+ * Convert a UTC timestamp to local hour in a given timezone
+ * Uses simplified offset calculation (doesn't account for DST)
+ */
+function getLocalHour(timestamp: number, timezone: string | undefined): number {
+  const tz = timezone || "America/New_York";
+  const date = new Date(timestamp);
+  const utcHour = date.getUTCHours();
+
+  // Simplified timezone offset (doesn't account for DST)
+  let offset = -5; // Default to Eastern (UTC-5)
+  if (tz.includes("Los_Angeles") || tz.includes("Pacific")) {
+    offset = -8;
+  } else if (tz.includes("Chicago") || tz.includes("Central")) {
+    offset = -6;
+  } else if (tz.includes("Denver") || tz.includes("Mountain")) {
+    offset = -7;
+  }
+
+  let localHour = utcHour + offset;
+  if (localHour < 0) localHour += 24;
+  if (localHour >= 24) localHour -= 24;
+  return localHour;
+}
+
+/**
  * Get average wait times by day of week
  * Returns data for weekly trend chart
+ * Uses pre-computed aggregates for fast reads, falls back to real-time if not available
  */
 export const getWeeklyPatterns = query({
   args: {
     weeks: v.optional(v.number()), // How many weeks of data (default 4)
   },
   handler: async (ctx, args) => {
+    // Try to use pre-computed aggregates first
+    const aggregates = await ctx.db
+      .query("weeklyAggregates")
+      .withIndex("by_operator")
+      .collect();
+
+    if (aggregates.length >= 7) {
+      // Use pre-computed data
+      const disneyByDay: Record<number, number> = {};
+      const universalByDay: Record<number, number> = {};
+
+      for (const agg of aggregates) {
+        if (agg.operator === "Disney") {
+          disneyByDay[agg.dayOfWeek] = agg.avgWaitTime;
+        } else if (agg.operator === "Universal") {
+          universalByDay[agg.dayOfWeek] = agg.avgWaitTime;
+        }
+      }
+
+      const weeklyData = [];
+      for (let i = 0; i < 7; i++) {
+        const dayIndex = (i + 1) % 7;
+        weeklyData.push({
+          day: DAY_NAMES[dayIndex],
+          disney: disneyByDay[dayIndex] ?? 0,
+          universal: universalByDay[dayIndex] ?? 0,
+        });
+      }
+
+      const sampleCount = aggregates.reduce((sum, a) => sum + a.sampleCount, 0);
+      const lastUpdated = Math.max(...aggregates.map((a) => a.lastUpdated));
+
+      return {
+        data: weeklyData,
+        totalDataPoints: sampleCount,
+        weeksOfData: args.weeks ?? 4,
+        hasEnoughData: true,
+        source: "precomputed",
+        lastUpdated,
+      };
+    }
+
+    // Fall back to real-time computation if aggregates not available
     const weeks = args.weeks ?? 4;
     const cutoffTime = Date.now() - weeks * 7 * 24 * 60 * 60 * 1000;
 
-    // Get all parks
+    // Calculate start of today (UTC) to exclude partial day data
+    const now = new Date();
+    const startOfTodayUTC = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+
     const parks = await ctx.db.query("parks").collect();
 
-    // Group parks by operator
     const disneyParkIds = new Set(
       parks.filter((p) => p.operator === "Disney").map((p) => p._id)
     );
@@ -30,13 +101,11 @@ export const getWeeklyPatterns = query({
       parks.filter((p) => p.operator === "Universal").map((p) => p._id)
     );
 
-    // Get all snapshots in the time range
     const snapshots = await ctx.db
       .query("waitTimeSnapshots")
       .withIndex("by_timestamp", (q) => q.gte("timestamp", cutoffTime))
-      .collect();
+      .take(25000);
 
-    // Group by day of week and operator
     const disneyByDay: Record<number, number[]> = {};
     const universalByDay: Record<number, number[]> = {};
 
@@ -46,7 +115,8 @@ export const getWeeklyPatterns = query({
     }
 
     for (const snapshot of snapshots) {
-      if (!snapshot.isOpen || snapshot.waitTimeMinutes === undefined) continue;
+      // Exclude today's partial data to avoid skewing averages
+      if (!snapshot.isOpen || snapshot.waitTimeMinutes === undefined || snapshot.timestamp >= startOfTodayUTC) continue;
 
       const dayOfWeek = new Date(snapshot.timestamp).getDay();
 
@@ -57,10 +127,8 @@ export const getWeeklyPatterns = query({
       }
     }
 
-    // Calculate averages
     const weeklyData = [];
     for (let i = 0; i < 7; i++) {
-      // Start from Monday (1) and wrap around
       const dayIndex = (i + 1) % 7;
       const disneyWaits = disneyByDay[dayIndex];
       const universalWaits = universalByDay[dayIndex];
@@ -91,6 +159,7 @@ export const getWeeklyPatterns = query({
       totalDataPoints,
       weeksOfData: weeks,
       hasEnoughData: totalDataPoints >= 100,
+      source: "realtime",
     };
   },
 });
@@ -98,6 +167,7 @@ export const getWeeklyPatterns = query({
 /**
  * Get hourly patterns (average wait by hour of day)
  * Returns data for hourly pattern chart
+ * Uses pre-computed aggregates for fast reads, falls back to real-time if not available
  */
 export const getHourlyPatterns = query({
   args: {
@@ -106,11 +176,53 @@ export const getHourlyPatterns = query({
     dayType: v.optional(v.string()), // weekday/weekend/all
   },
   handler: async (ctx, args) => {
+    const dayTypeFilter = args.dayType ?? "all";
+
+    // Try to use pre-computed aggregates first (only for "all parks" queries)
+    if (!args.parkExternalId) {
+      const aggregates = await ctx.db
+        .query("hourlyAggregates")
+        .withIndex("by_operator_daytype", (q) =>
+          q.eq("operator", "all").eq("dayType", dayTypeFilter)
+        )
+        .collect();
+
+      if (aggregates.length >= 5) {
+        // Use pre-computed data
+        const data = [];
+        for (let hour = 9; hour <= 21; hour++) {
+          const agg = aggregates.find((a) => a.hour === hour);
+          data.push({
+            hour: HOUR_LABELS[hour - 9],
+            wait: agg?.avgWaitTime ?? 0,
+          });
+        }
+
+        const sampleCount = aggregates.reduce((sum, a) => sum + a.sampleCount, 0);
+        const lastUpdated = Math.max(...aggregates.map((a) => a.lastUpdated));
+
+        return {
+          data,
+          totalDataPoints: sampleCount,
+          daysOfData: args.days ?? 14,
+          hasEnoughData: true,
+          source: "precomputed",
+          lastUpdated,
+          timezone: undefined, // All parks use mixed timezones
+        };
+      }
+    }
+
+    // Fall back to real-time computation
     const days = args.days ?? 14;
     const cutoffTime = Date.now() - days * 24 * 60 * 60 * 1000;
 
-    // Get park filter if specified
+    // Calculate start of today (UTC) to exclude partial day data
+    const now = new Date();
+    const startOfTodayUTC = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+
     let parkId = null;
+    let parkTimezone: string | undefined = undefined;
     if (args.parkExternalId !== undefined) {
       const externalId = args.parkExternalId;
       const park = await ctx.db
@@ -121,10 +233,10 @@ export const getHourlyPatterns = query({
         .unique();
       if (park) {
         parkId = park._id;
+        parkTimezone = park.timezone;
       }
     }
 
-    // Get snapshots
     let snapshots;
     if (parkId) {
       snapshots = await ctx.db
@@ -132,17 +244,17 @@ export const getHourlyPatterns = query({
         .withIndex("by_park_time", (q) =>
           q.eq("parkId", parkId).gte("timestamp", cutoffTime)
         )
-        .collect();
+        .take(20000);
     } else {
       snapshots = await ctx.db
         .query("waitTimeSnapshots")
         .withIndex("by_timestamp", (q) => q.gte("timestamp", cutoffTime))
-        .collect();
+        .take(20000);
     }
 
-    // Filter by day type if specified
+    // Exclude today's partial data to avoid skewing averages
     const filteredSnapshots = snapshots.filter((snapshot) => {
-      if (!snapshot.isOpen || snapshot.waitTimeMinutes === undefined)
+      if (!snapshot.isOpen || snapshot.waitTimeMinutes === undefined || snapshot.timestamp >= startOfTodayUTC)
         return false;
 
       if (args.dayType && args.dayType !== "all") {
@@ -156,20 +268,21 @@ export const getHourlyPatterns = query({
       return true;
     });
 
-    // Group by hour
     const hourlyData: Record<number, number[]> = {};
     for (let hour = 9; hour <= 21; hour++) {
       hourlyData[hour] = [];
     }
 
     for (const snapshot of filteredSnapshots) {
-      const hour = new Date(snapshot.timestamp).getHours();
+      // Use local park time when a specific park is selected
+      const hour = parkTimezone
+        ? getLocalHour(snapshot.timestamp, parkTimezone)
+        : new Date(snapshot.timestamp).getUTCHours();
       if (hour >= 9 && hour <= 21) {
         hourlyData[hour].push(snapshot.waitTimeMinutes!);
       }
     }
 
-    // Calculate averages
     const data = [];
     for (let hour = 9; hour <= 21; hour++) {
       const waits = hourlyData[hour];
@@ -187,27 +300,75 @@ export const getHourlyPatterns = query({
       totalDataPoints: filteredSnapshots.length,
       daysOfData: days,
       hasEnoughData: filteredSnapshots.length >= 50,
+      source: "realtime",
+      timezone: parkTimezone,
     };
   },
 });
 
 /**
  * Get analytics insights summary
+ * Uses pre-computed aggregates for fast reads, falls back to real-time if not available
  */
 export const getAnalyticsInsights = query({
   args: {},
   handler: async (ctx) => {
+    // Try to use pre-computed insights first
+    const insights = await ctx.db
+      .query("analyticsInsights")
+      .withIndex("by_type")
+      .collect();
+
+    const relevantInsights = insights.filter((i) => i.periodDays === 28);
+
+    if (relevantInsights.length >= 4) {
+      const findInsight = (type: string) =>
+        relevantInsights.find((i) => i.insightType === type);
+
+      const bestDay = findInsight("best_day");
+      const worstDay = findInsight("worst_day");
+      const bestHour = findInsight("best_hour");
+      const worstHour = findInsight("worst_hour");
+
+      const lastUpdated = Math.max(...relevantInsights.map((i) => i.lastUpdated));
+
+      return {
+        hasEnoughData: true,
+        bestDay: bestDay
+          ? { name: bestDay.value, avgWait: bestDay.metric }
+          : null,
+        worstDay: worstDay
+          ? { name: worstDay.value, avgWait: worstDay.metric }
+          : null,
+        bestHour: bestHour
+          ? { time: bestHour.value, avgWait: bestHour.metric }
+          : null,
+        worstHour: worstHour
+          ? { time: worstHour.value, avgWait: worstHour.metric }
+          : null,
+        weekOverWeekTrend: null, // TODO: Add to aggregation if needed
+        totalDataPoints: 0, // Not tracked in aggregates
+        source: "precomputed",
+        lastUpdated,
+      };
+    }
+
+    // Fall back to real-time computation
     const fourWeeksAgo = Date.now() - 28 * 24 * 60 * 60 * 1000;
     const twoWeeksAgo = Date.now() - 14 * 24 * 60 * 60 * 1000;
 
-    // Get snapshots from last 4 weeks
+    // Calculate start of today (UTC) to exclude partial day data
+    const now = new Date();
+    const startOfTodayUTC = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+
     const snapshots = await ctx.db
       .query("waitTimeSnapshots")
       .withIndex("by_timestamp", (q) => q.gte("timestamp", fourWeeksAgo))
-      .collect();
+      .take(25000);
 
+    // Exclude today's partial data to avoid skewing averages
     const validSnapshots = snapshots.filter(
-      (s) => s.isOpen && s.waitTimeMinutes !== undefined
+      (s) => s.isOpen && s.waitTimeMinutes !== undefined && s.timestamp < startOfTodayUTC
     );
 
     if (validSnapshots.length < 50) {
@@ -219,22 +380,20 @@ export const getAnalyticsInsights = query({
         worstHour: null,
         weekOverWeekTrend: null,
         totalDataPoints: validSnapshots.length,
+        source: "realtime",
       };
     }
 
-    // Calculate best/worst day of week
     const dayAverages: Record<number, { total: number; count: number }> = {};
     for (let i = 0; i < 7; i++) {
       dayAverages[i] = { total: 0, count: 0 };
     }
 
-    // Calculate best/worst hour
     const hourAverages: Record<number, { total: number; count: number }> = {};
     for (let h = 9; h <= 21; h++) {
       hourAverages[h] = { total: 0, count: 0 };
     }
 
-    // Split into recent vs older for trend
     const recentSnapshots = validSnapshots.filter(
       (s) => s.timestamp >= twoWeeksAgo
     );
@@ -256,7 +415,6 @@ export const getAnalyticsInsights = query({
       }
     }
 
-    // Find best/worst day
     let bestDay = { day: 0, avg: Infinity };
     let worstDay = { day: 0, avg: 0 };
 
@@ -272,7 +430,6 @@ export const getAnalyticsInsights = query({
       }
     }
 
-    // Find best/worst hour
     let bestHour = { hour: 9, avg: Infinity };
     let worstHour = { hour: 12, avg: 0 };
 
@@ -288,7 +445,6 @@ export const getAnalyticsInsights = query({
       }
     }
 
-    // Calculate week-over-week trend
     const recentAvg =
       recentSnapshots.length > 0
         ? recentSnapshots.reduce((a, b) => a + (b.waitTimeMinutes ?? 0), 0) /
@@ -338,12 +494,14 @@ export const getAnalyticsInsights = query({
       },
       weekOverWeekTrend,
       totalDataPoints: validSnapshots.length,
+      source: "realtime",
     };
   },
 });
 
 /**
  * Get operator comparison (Disney vs Universal)
+ * Uses pre-computed aggregates for fast reads, falls back to real-time if not available
  */
 export const getOperatorComparison = query({
   args: {
@@ -351,9 +509,52 @@ export const getOperatorComparison = query({
   },
   handler: async (ctx, args) => {
     const days = args.days ?? 14;
+
+    // Try to use pre-computed aggregates first
+    const aggregates = await ctx.db
+      .query("operatorAggregates")
+      .withIndex("by_operator_period")
+      .collect();
+
+    const disney = aggregates.find(
+      (a) => a.operator === "Disney" && a.periodDays === days
+    );
+    const universal = aggregates.find(
+      (a) => a.operator === "Universal" && a.periodDays === days
+    );
+
+    if (disney || universal) {
+      return {
+        disney: disney
+          ? {
+              avgWait: disney.avgWaitTime,
+              totalSnapshots: disney.totalSnapshots,
+              parksTracked: disney.parksTracked,
+            }
+          : { avgWait: 0, totalSnapshots: 0, parksTracked: 0 },
+        universal: universal
+          ? {
+              avgWait: universal.avgWaitTime,
+              totalSnapshots: universal.totalSnapshots,
+              parksTracked: universal.parksTracked,
+            }
+          : { avgWait: 0, totalSnapshots: 0, parksTracked: 0 },
+        daysOfData: days,
+        source: "precomputed",
+        lastUpdated: Math.max(
+          disney?.lastUpdated ?? 0,
+          universal?.lastUpdated ?? 0
+        ),
+      };
+    }
+
+    // Fall back to real-time computation
     const cutoffTime = Date.now() - days * 24 * 60 * 60 * 1000;
 
-    // Get all parks
+    // Calculate start of today (UTC) to exclude partial day data
+    const now = new Date();
+    const startOfTodayUTC = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+
     const parks = await ctx.db.query("parks").collect();
 
     const disneyParkIds = new Set(
@@ -363,23 +564,25 @@ export const getOperatorComparison = query({
       parks.filter((p) => p.operator === "Universal").map((p) => p._id)
     );
 
-    // Get snapshots
     const snapshots = await ctx.db
       .query("waitTimeSnapshots")
       .withIndex("by_timestamp", (q) => q.gte("timestamp", cutoffTime))
-      .collect();
+      .take(20000);
 
+    // Exclude today's partial data to avoid skewing averages
     const disneySnapshots = snapshots.filter(
       (s) =>
         disneyParkIds.has(s.parkId) &&
         s.isOpen &&
-        s.waitTimeMinutes !== undefined
+        s.waitTimeMinutes !== undefined &&
+        s.timestamp < startOfTodayUTC
     );
     const universalSnapshots = snapshots.filter(
       (s) =>
         universalParkIds.has(s.parkId) &&
         s.isOpen &&
-        s.waitTimeMinutes !== undefined
+        s.waitTimeMinutes !== undefined &&
+        s.timestamp < startOfTodayUTC
     );
 
     const disneyAvg =
@@ -405,6 +608,7 @@ export const getOperatorComparison = query({
         parksTracked: universalParkIds.size,
       },
       daysOfData: days,
+      source: "realtime",
     };
   },
 });
@@ -434,11 +638,11 @@ export const getHistoricalTrend = query({
       parks.filter((p) => p.operator === "Universal").map((p) => p._id)
     );
 
-    // Get all snapshots in the time range
+    // Get snapshots in the time range with limit
     const snapshots = await ctx.db
       .query("waitTimeSnapshots")
       .withIndex("by_timestamp", (q) => q.gte("timestamp", cutoffTime))
-      .collect();
+      .take(25000);
 
     // Group by date and operator
     const disneyByDate: Record<string, number[]> = {};
@@ -511,13 +715,24 @@ export const getDataCollectionStatus = query({
     const parks = await ctx.db.query("parks").collect();
     const rides = await ctx.db.query("rides").collect();
 
-    // Get snapshot count and date range
-    const allSnapshots = await ctx.db
+    // Get snapshot count and date range - use order and limit for efficiency
+    // We only need oldest/newest timestamps and count, so get a sample
+    const recentSnapshots = await ctx.db
       .query("waitTimeSnapshots")
       .withIndex("by_timestamp")
-      .collect();
+      .order("desc")
+      .take(10000);
 
-    if (allSnapshots.length === 0) {
+    const oldestSnapshots = await ctx.db
+      .query("waitTimeSnapshots")
+      .withIndex("by_timestamp")
+      .order("asc")
+      .take(100);
+
+    // Combine for analysis (recentSnapshots contains recent data, oldestSnapshots gives us the oldest timestamp)
+    const allSnapshots = recentSnapshots;
+
+    if (allSnapshots.length === 0 && oldestSnapshots.length === 0) {
       return {
         totalSnapshots: 0,
         totalRides: rides.length,
@@ -537,13 +752,16 @@ export const getDataCollectionStatus = query({
       };
     }
 
-    const timestamps = allSnapshots.map((s) => s.timestamp);
-    const oldestTimestamp = Math.min(...timestamps);
-    const newestTimestamp = Math.max(...timestamps);
+    // Get oldest from the asc query, newest from the desc query
+    const oldestTimestamp = oldestSnapshots.length > 0 ? oldestSnapshots[0].timestamp : allSnapshots[allSnapshots.length - 1]?.timestamp ?? Date.now();
+    const newestTimestamp = allSnapshots.length > 0 ? allSnapshots[0].timestamp : Date.now();
 
-    // Calculate unique days
+    // Calculate unique days from both sample sets
     const uniqueDays = new Set<string>();
     for (const snapshot of allSnapshots) {
+      uniqueDays.add(new Date(snapshot.timestamp).toISOString().split("T")[0]);
+    }
+    for (const snapshot of oldestSnapshots) {
       uniqueDays.add(new Date(snapshot.timestamp).toISOString().split("T")[0]);
     }
 
@@ -642,11 +860,11 @@ export const getLandComparison = query({
     // Create a map of land IDs to land info
     const landMap = new Map(relevantLands.map((land) => [land._id, land]));
 
-    // Get snapshots with land data
+    // Get snapshots with land data (with limit)
     const snapshots = await ctx.db
       .query("waitTimeSnapshots")
       .withIndex("by_timestamp", (q) => q.gte("timestamp", cutoffTime))
-      .collect();
+      .take(20000);
 
     // Filter to relevant parks and valid snapshots with land data
     const relevantSnapshots = snapshots.filter(

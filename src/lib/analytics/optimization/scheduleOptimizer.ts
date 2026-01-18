@@ -37,6 +37,7 @@ import {
   type RopeDropTarget,
 } from '../data/ropeDropStrategy';
 import { getAdjustedWeight } from '../data/rideWeights';
+import { getStrategyRideOrder } from './strategyGenerator';
 
 const WALK_TIME_BETWEEN_RIDES = 10; // minutes
 const ROPE_DROP_WINDOW_HOURS = 2; // First 2 hours for rope drop optimization
@@ -221,7 +222,8 @@ export function optimizeSchedule(input: OptimizationInput): OptimizedSchedule {
     preferences.includeBreaks,
     preferences.ropeDropMode ?? false,
     preferences.parkId,
-    preferences.ropeDropTarget
+    preferences.ropeDropTarget,
+    preferences.selectedStrategy
   );
 
   // Post-process: Add special wording for first and last rides (skip for park hopper sub-schedules)
@@ -279,13 +281,32 @@ export function optimizeSchedule(input: OptimizationInput): OptimizedSchedule {
 /**
  * Check if a ride has a significantly better time later in the day
  * Returns true if we should defer this ride to a better time
+ *
+ * NEVER defer:
+ * - User-selected rides (user explicitly chose these)
+ * - Rope drop targets during the rope drop window
  */
 function shouldDeferRide(
   ride: RideWithPredictions,
   currentHour: number,
-  departureHour: number
+  departureHour: number,
+  options: {
+    isUserSelected?: boolean;
+    isRopeDropTarget?: boolean;
+    isRopeDropWindow?: boolean;
+  } = {}
 ): { shouldDefer: boolean; bestLaterHour: number; currentWait: number; bestLaterWait: number } {
   const currentWait = getPredictedWaitForHour(ride, currentHour);
+
+  // NEVER defer user-selected rides - they explicitly chose these
+  if (options.isUserSelected) {
+    return { shouldDefer: false, bestLaterHour: currentHour, currentWait, bestLaterWait: currentWait };
+  }
+
+  // NEVER defer rope drop targets during the rope drop window
+  if (options.isRopeDropWindow && options.isRopeDropTarget) {
+    return { shouldDefer: false, bestLaterHour: currentHour, currentWait, bestLaterWait: currentWait };
+  }
 
   // Find the best wait time available in remaining hours
   let bestLaterWait = currentWait;
@@ -312,9 +333,46 @@ function shouldDeferRide(
 }
 
 /**
+ * Get the delta (midday wait - rope drop wait) for a ride
+ * Used for comparing rides during rope drop prioritization
+ */
+function getRideDeltaForComparison(
+  ride: RideWithPredictions,
+  ropeDropStrategy: { targets: RopeDropTarget[] } | null
+): number {
+  // First check if it's a known rope drop target with defined delta
+  if (ropeDropStrategy) {
+    const rideName = ride.name.toLowerCase();
+    for (const target of ropeDropStrategy.targets) {
+      const targetName = target.rideName.toLowerCase();
+      const matchesMain = rideName === targetName || rideName.includes(targetName) || targetName.includes(rideName);
+      const matchesAlias = target.rideNameAliases?.some(alias => {
+        const aliasLower = alias.toLowerCase();
+        return rideName === aliasLower || rideName.includes(aliasLower) || aliasLower.includes(rideName);
+      });
+
+      if (matchesMain || matchesAlias) {
+        return target.typicalMiddayWait - target.typicalRopeDropWait;
+      }
+    }
+  }
+
+  // Fall back to calculating delta from hourlyPredictions
+  if (ride.hourlyPredictions && ride.hourlyPredictions.length > 0) {
+    const ropeDropWait = ride.hourlyPredictions[0] || 30;
+    const peakWait = Math.max(...ride.hourlyPredictions);
+    return peakWait - ropeDropWait;
+  }
+
+  // Last resort: estimate based on current wait time
+  return (ride.currentWaitTime || 30) * 0.5;
+}
+
+/**
  * Build the optimized schedule using smart algorithm
  * Key improvement: Defers rides to better times if current wait is much higher
  * Rope drop mode: Prioritizes high-value targets in the first 2 hours
+ * Selected strategy: Uses strategy's ride order for first 2-3 rides
  */
 function buildSchedule(
   rides: RideWithPredictions[],
@@ -324,7 +382,8 @@ function buildSchedule(
   includeBreaks: boolean,
   ropeDropMode: boolean = false,
   parkId?: number,
-  ropeDropTarget?: string
+  ropeDropTarget?: string,
+  selectedStrategy?: string
 ): ScheduleItem[] {
   const schedule: ScheduleItem[] = [];
   const scheduledRideIds = new Set<string | number>();
@@ -347,8 +406,9 @@ function buildSchedule(
 
   if (ropeDropMode && ropeDropStrategy) {
     // In rope drop mode, prioritize rope drop targets first
+    // If user selected a specific strategy, use that strategy's ride order
     // If user selected a specific target, that goes first
-    prioritizedRides = prioritizeRidesForRopeDrop(rides, ropeDropStrategy, priority, ropeDropTarget);
+    prioritizedRides = prioritizeRidesForRopeDrop(rides, ropeDropStrategy, priority, ropeDropTarget, parkId, selectedStrategy);
   } else {
     // Standard prioritization (headliners first)
     prioritizedRides = prioritizeRides(rides, priority);
@@ -415,13 +475,27 @@ function buildSchedule(
       }
     }
 
+    // Check if we're in the rope drop window (first 2 hours after arrival)
+    const isInRopeDropWindow = ropeDropMode && currentHour < ropeDropEndHour;
+
     // Filter out rides that should be deferred to better times
     // But only defer if we have other rides to do in the meantime
+    // NEVER defer: user-selected rides or rope drop targets during rope drop window
     const ridesForNow: RideWithPredictions[] = [];
     const ridesToDefer: Array<{ ride: RideWithPredictions; deferInfo: ReturnType<typeof shouldDeferRide> }> = [];
 
     for (const ride of remainingRides) {
-      const deferCheck = shouldDeferRide(ride, currentHour, departureHour);
+      // Check if this is a known rope drop target
+      const rideIsRopeDropTarget = parkId ? !!isRopeDropTarget(ride.name, parkId) : false;
+
+      // ALL rides in this loop are user-selected (they come from selectedRides in the wizard)
+      // We should NEVER defer user-selected rides - the user explicitly chose them
+      const deferCheck = shouldDeferRide(ride, currentHour, departureHour, {
+        isUserSelected: true, // All rides here are user-selected from the wizard
+        isRopeDropTarget: rideIsRopeDropTarget,
+        isRopeDropWindow: isInRopeDropWindow,
+      });
+
       if (deferCheck.shouldDefer) {
         ridesToDefer.push({ ride, deferInfo: deferCheck });
       } else {
@@ -435,10 +509,12 @@ function buildSchedule(
 
     // During rope drop window with a user-selected target, prioritize that target first
     // Don't let the scoring algorithm override the user's explicit choice
-    const isInRopeDropWindow = ropeDropMode && currentHour < ropeDropEndHour;
     let bestRide: RideWithPredictions | null = null;
 
-    if (isInRopeDropWindow && ropeDropTarget && schedule.length === 0) {
+    // Check if we have any rides scheduled yet (breaks don't count)
+    const hasScheduledRides = schedule.some(item => item.type === 'ride');
+
+    if (isInRopeDropWindow && ropeDropTarget && !hasScheduledRides) {
       // First ride of the day during rope drop - use user's selected target
       // Search in ALL remaining rides, not just candidateRides, because the target
       // may have been filtered out by the "should defer" logic, but the user's
@@ -452,7 +528,47 @@ function buildSchedule(
       }) ?? null;
     }
 
-    // Fall back to standard selection if no user target match
+    // During rope drop window: respect the prioritized order (sorted by delta)
+    // But also consider land proximity for efficiency after the first ride
+    if (!bestRide && isInRopeDropWindow && ropeDropMode) {
+      // candidateRides is already sorted by prioritizeRidesForRopeDrop (highest delta first)
+      const highestDeltaRide = candidateRides[0] ?? null;
+
+      if (!hasScheduledRides || !lastLand || !highestDeltaRide) {
+        // First ride of the day - just pick highest delta
+        bestRide = highestDeltaRide;
+      } else {
+        // Subsequent rides - balance delta with land proximity
+        // Find the best ride in the SAME land as where we currently are
+        const currentLandName: string = lastLand!.toLowerCase().trim(); // lastLand is guaranteed non-null here
+        const sameLandRides: RideWithPredictions[] = candidateRides.filter(r =>
+          r.land?.toLowerCase().trim() === currentLandName
+        );
+        const bestSameLandRide: RideWithPredictions | null = sameLandRides[0] ?? null; // Already sorted by delta
+
+        if (bestSameLandRide) {
+          // Compare deltas: is staying in the same land worth it?
+          // Get deltas for comparison
+          const highestDelta: number = getRideDeltaForComparison(highestDeltaRide, ropeDropStrategy);
+          const sameLandDelta: number = getRideDeltaForComparison(bestSameLandRide, ropeDropStrategy);
+
+          // If same-land ride's delta is within 20 min of the best, stay in the land
+          // This saves walking time while still being efficient
+          const deltaThreshold = 20;
+          if (highestDelta - sameLandDelta <= deltaThreshold) {
+            bestRide = bestSameLandRide;
+          } else {
+            // The highest delta ride is significantly better - worth walking
+            bestRide = highestDeltaRide;
+          }
+        } else {
+          // No rides in the same land - pick highest delta
+          bestRide = highestDeltaRide;
+        }
+      }
+    }
+
+    // Outside rope drop window: use standard scoring-based selection
     if (!bestRide) {
       bestRide = selectBestRide(
         candidateRides,
@@ -762,32 +878,69 @@ function createEmptySchedule(message: string): OptimizedSchedule {
 
 /**
  * Prioritize rides for rope drop mode
- * Orders rides by: 1) User's selected target, 2) Rope drop targets by priority, 3) Then standard priority
+ * Orders rides by: 1) Selected strategy order, 2) User's selected target, 3) Rope drop targets by priority, 4) Then standard priority
  */
 function prioritizeRidesForRopeDrop(
   rides: RideWithPredictions[],
   ropeDropStrategy: { targets: RopeDropTarget[]; suggestedOrder: string[] },
   userPriority: 'thrill' | 'family' | 'shows' | 'balanced',
-  userSelectedTarget?: string
+  userSelectedTarget?: string,
+  parkId?: number,
+  selectedStrategy?: string
 ): RideWithPredictions[] {
+  // If a strategy was selected, get the strategy's ride order
+  const strategyRideOrder = selectedStrategy && parkId
+    ? getStrategyRideOrder(selectedStrategy, parkId)
+    : [];
+  const strategyRideSet = new Set(strategyRideOrder.map(name => name.toLowerCase()));
   // Create a map of rope drop target priorities
   const targetPriorities = new Map<string, number>();
+  // Create a map of rope drop target DELTAS (midday - rope drop = time saved by rope dropping)
+  // Higher delta = ride "hurts more to skip" at rope drop
+  const targetDeltas = new Map<string, number>();
   for (const target of ropeDropStrategy.targets) {
     // Lower number = higher priority (1 is highest)
     targetPriorities.set(target.rideName.toLowerCase(), target.priority);
+    // Calculate delta (time saved by rope dropping)
+    const delta = target.typicalMiddayWait - target.typicalRopeDropWait;
+    targetDeltas.set(target.rideName.toLowerCase(), delta);
     // Also map aliases
     if (target.rideNameAliases) {
       for (const alias of target.rideNameAliases) {
         targetPriorities.set(alias.toLowerCase(), target.priority);
+        targetDeltas.set(alias.toLowerCase(), delta);
       }
     }
   }
 
-  // Also use suggested order for fine-tuning
+  // Also use suggested order for fine-tuning (fallback only)
   const suggestedOrderMap = new Map<string, number>();
   ropeDropStrategy.suggestedOrder.forEach((name, index) => {
     suggestedOrderMap.set(name.toLowerCase(), index);
   });
+
+  // Helper to get delta for a ride (from targets or calculated from predictions)
+  const getRideDelta = (ride: RideWithPredictions): number => {
+    const rideName = ride.name.toLowerCase();
+    // First check if it's a known rope drop target with defined delta
+    if (targetDeltas.has(rideName)) {
+      return targetDeltas.get(rideName)!;
+    }
+    // Check aliases
+    const aliasMatch = [...targetDeltas.entries()].find(([key]) => rideName.includes(key));
+    if (aliasMatch) {
+      return aliasMatch[1];
+    }
+    // Fall back to calculating delta from hourlyPredictions
+    // Peak is typically around noon-2pm (indices 3-5 for 9am start), rope drop is index 0
+    if (ride.hourlyPredictions && ride.hourlyPredictions.length > 0) {
+      const ropeDropWait = ride.hourlyPredictions[0] || 30;
+      const peakWait = Math.max(...ride.hourlyPredictions);
+      return peakWait - ropeDropWait;
+    }
+    // Last resort: estimate based on current wait time
+    return (ride.currentWaitTime || 30) * 0.5;
+  };
 
   // Normalize user's selected target for comparison
   const userTargetNormalized = userSelectedTarget?.toLowerCase();
@@ -801,11 +954,42 @@ function prioritizeRidesForRopeDrop(
            userTargetNormalized.includes(normalized);
   };
 
+  // Helper to check if a ride matches a strategy ride name
+  const getStrategyRideIndex = (rideName: string): number => {
+    const normalized = rideName.toLowerCase();
+    // Check for exact match first
+    const exactIndex = strategyRideOrder.findIndex(name => name.toLowerCase() === normalized);
+    if (exactIndex >= 0) return exactIndex;
+    // Check for partial match (e.g., "Space Mountain" matches "Space Mountain Magic Kingdom")
+    return strategyRideOrder.findIndex(name => {
+      const strategyName = name.toLowerCase();
+      return normalized.includes(strategyName) || strategyName.includes(normalized);
+    });
+  };
+
   return [...rides].sort((a, b) => {
     const aName = a.name.toLowerCase();
     const bName = b.name.toLowerCase();
 
-    // FIRST PRIORITY: User's selected rope drop target always comes first
+    // HIGHEST PRIORITY: Selected strategy's ride order
+    // If user selected a strategy, those rides come first in that specific order
+    if (strategyRideOrder.length > 0) {
+      const aStrategyIdx = getStrategyRideIndex(a.name);
+      const bStrategyIdx = getStrategyRideIndex(b.name);
+      const aInStrategy = aStrategyIdx >= 0;
+      const bInStrategy = bStrategyIdx >= 0;
+
+      // Strategy rides come before non-strategy rides
+      if (aInStrategy && !bInStrategy) return -1;
+      if (!aInStrategy && bInStrategy) return 1;
+
+      // Both in strategy - maintain strategy order
+      if (aInStrategy && bInStrategy) {
+        return aStrategyIdx - bStrategyIdx;
+      }
+    }
+
+    // SECOND PRIORITY: User's selected rope drop target always comes first
     const aIsUserTarget = isUserSelectedTarget(a.name);
     const bIsUserTarget = isUserSelectedTarget(b.name);
     if (aIsUserTarget && !bIsUserTarget) return -1;
@@ -821,7 +1005,7 @@ function prioritizeRidesForRopeDrop(
     if (aIsTarget && !bIsTarget) return -1;
     if (!aIsTarget && bIsTarget) return 1;
 
-    // Both are rope drop targets - sort by target priority
+    // Both are rope drop targets - sort by target priority, then by delta
     if (aIsTarget && bIsTarget) {
       const aPriority = targetPriorities.get(aName) ??
         [...targetPriorities.entries()].find(([key]) => aName.includes(key))?.[1] ?? 99;
@@ -832,17 +1016,22 @@ function prioritizeRidesForRopeDrop(
         return aPriority - bPriority; // Lower priority number = comes first
       }
 
-      // Same priority - use suggested order
-      const aOrder = suggestedOrderMap.get(aName) ??
-        [...suggestedOrderMap.entries()].find(([key]) => aName.includes(key))?.[1] ?? 99;
-      const bOrder = suggestedOrderMap.get(bName) ??
-        [...suggestedOrderMap.entries()].find(([key]) => bName.includes(key))?.[1] ?? 99;
-
-      return aOrder - bOrder;
+      // Same priority - sort by DELTA (higher delta = "hurts more to skip" = comes first)
+      const aDelta = getRideDelta(a);
+      const bDelta = getRideDelta(b);
+      return bDelta - aDelta; // Higher delta comes first
     }
 
-    // Neither are rope drop targets - fall back to ride weights
-    // Higher weight = higher priority (should come first)
+    // Neither are rope drop targets - use delta-based sorting
+    // The ride that "hurts most to skip" at rope drop should still come first
+    const aDelta = getRideDelta(a);
+    const bDelta = getRideDelta(b);
+    if (Math.abs(aDelta - bDelta) > 10) {
+      // Significant difference - use delta
+      return bDelta - aDelta;
+    }
+
+    // Similar deltas - fall back to ride weights
     const weightA = getAdjustedWeight(a.name, userPriority);
     const weightB = getAdjustedWeight(b.name, userPriority);
 
@@ -902,7 +1091,8 @@ export async function optimizeScheduleAsync(
     preferences.includeBreaks,
     preferences.ropeDropMode ?? false,
     preferences.parkId,
-    preferences.ropeDropTarget
+    preferences.ropeDropTarget,
+    preferences.selectedStrategy
   );
 
   // Post-process: Add special wording for first and last rides (skip for park hopper sub-schedules)

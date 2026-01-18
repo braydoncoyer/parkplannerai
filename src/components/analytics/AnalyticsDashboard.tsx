@@ -96,16 +96,34 @@ function InsightCard({
 }
 
 function ParkComparisonChart({ parks }: { parks: Park[] }) {
-  const chartData = parks.slice(0, 8).map((park) => ({
+  // Sort parks: open parks first (by avgWait desc), then closed parks alphabetically
+  const sortedParks = [...parks].sort((a, b) => {
+    const aOpen = a.isOpen && a.stats.avgWaitTime > 0;
+    const bOpen = b.isOpen && b.stats.avgWaitTime > 0;
+    if (aOpen && !bOpen) return -1;
+    if (!aOpen && bOpen) return 1;
+    if (aOpen && bOpen) return b.stats.avgWaitTime - a.stats.avgWaitTime;
+    return a.name.localeCompare(b.name);
+  });
+
+  const chartData = sortedParks.map((park) => ({
     name: park.name.replace('Disneyland', 'DL').replace('Disney', 'D').replace('Universal', 'U').split(' ').slice(0, 2).join(' '),
     avgWait: park.stats.avgWaitTime,
     maxWait: park.stats.maxWaitTime,
     operator: park.operator,
+    isOpen: park.isOpen && park.stats.avgWaitTime > 0,
   }));
+
+  const closedCount = chartData.filter(p => !p.isOpen).length;
 
   return (
     <div className="chart-container">
       <h3>Current Wait Times by Park</h3>
+      {closedCount > 0 && (
+        <p className="chart-subtitle" style={{ fontSize: '12px', color: '#64748b', marginTop: '-8px' }}>
+          {closedCount} park{closedCount > 1 ? 's' : ''} currently closed (shown with 0 wait)
+        </p>
+      )}
       <ResponsiveContainer width="100%" height={300}>
         <BarChart data={chartData} margin={{ top: 20, right: 30, left: 0, bottom: 60 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e2e0db" />
@@ -194,24 +212,60 @@ function WeeklyTrendChart({
 
 function HourlyPatternChart({
   data,
-  isRealData
+  isRealData,
+  parks,
+  selectedPark,
+  onParkChange
 }: {
   data: { hour: string; wait: number }[];
   isRealData: boolean;
+  parks: Array<{ externalId: string; name: string; operator: string }>;
+  selectedPark: string | undefined;
+  onParkChange: (parkId: string | undefined) => void;
 }) {
+  // Find selected park info for subtitle
+  const selectedParkInfo = selectedPark
+    ? parks.find(p => p.externalId === selectedPark)
+    : null;
+
   return (
     <div className="chart-container">
-      <h3>
-        Typical Daily Pattern
-        {isRealData ? (
-          <span className="chart-badge live">Historical Data</span>
-        ) : (
-          <span className="chart-badge">Sample Data</span>
-        )}
-      </h3>
+      <div className="chart-header-row">
+        <h3>
+          Typical Daily Pattern
+          {isRealData ? (
+            <span className="chart-badge live">Historical Data</span>
+          ) : (
+            <span className="chart-badge">Sample Data</span>
+          )}
+        </h3>
+        <select
+          className="park-selector"
+          value={selectedPark ?? ""}
+          onChange={(e) => onParkChange(e.target.value || undefined)}
+        >
+          <option value="">All Parks</option>
+          <optgroup label="Disney Parks">
+            {parks.filter(p => p.operator === 'Disney').map(park => (
+              <option key={park.externalId} value={park.externalId}>
+                {park.name.replace('Disney ', '')}
+              </option>
+            ))}
+          </optgroup>
+          <optgroup label="Universal Parks">
+            {parks.filter(p => p.operator === 'Universal').map(park => (
+              <option key={park.externalId} value={park.externalId}>
+                {park.name.replace('Universal ', '').replace(' At Universal Orlando', '')}
+              </option>
+            ))}
+          </optgroup>
+        </select>
+      </div>
       <p className="chart-subtitle">
         {isRealData
-          ? 'When crowds peak throughout the day based on collected data'
+          ? selectedParkInfo
+            ? `Hourly wait patterns at ${selectedParkInfo.name}`
+            : 'When crowds peak throughout the day (all parks combined)'
           : 'When crowds peak throughout the day (collecting real data...)'
         }
       </p>
@@ -581,10 +635,14 @@ export default function AnalyticsDashboard() {
   const [data, setData] = useState<ParksResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedLandPark, setSelectedLandPark] = useState<string | undefined>(undefined);
+  const [selectedHourlyPark, setSelectedHourlyPark] = useState<string | undefined>(undefined);
 
   // Convex queries for historical data
   const weeklyPatterns = useQuery(api.queries.analytics.getWeeklyPatterns, { weeks: 4 });
-  const hourlyPatterns = useQuery(api.queries.analytics.getHourlyPatterns, { days: 14 });
+  const hourlyPatterns = useQuery(
+    api.queries.analytics.getHourlyPatterns,
+    selectedHourlyPark ? { days: 14, parkExternalId: selectedHourlyPark } : { days: 14 }
+  );
   const insights = useQuery(api.queries.analytics.getAnalyticsInsights);
   const collectionStatus = useQuery(api.queries.analytics.getDataCollectionStatus);
   const historicalTrend = useQuery(api.queries.analytics.getHistoricalTrend, { days: 30 });
@@ -764,6 +822,9 @@ export default function AnalyticsDashboard() {
         <HourlyPatternChart
           data={hourlyChartData}
           isRealData={hourlyPatterns?.hasEnoughData ?? false}
+          parks={allParks ?? []}
+          selectedPark={selectedHourlyPark}
+          onParkChange={setSelectedHourlyPark}
         />
       </section>
 
