@@ -17,6 +17,7 @@
     "@types/d3": "^7.4.3",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
+    "@vemetric/astro": "^0.6.1",
     "astro": "^5.16.7",
     "convex": "^1.31.4",
     "d3": "^7.9.0",

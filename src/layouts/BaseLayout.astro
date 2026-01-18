@@ -1,6 +1,7 @@
 ---
 import '../styles/global.css';
 import '../styles/animations.css';
+import VemetricScript from '@vemetric/astro';
 
 interface Props {
   title: string;
@@ -31,6 +32,8 @@ const imageUrl = new URL(image, siteUrl).toString();
 
     <!-- Canonical URL -->
     <link rel="canonical" href={canonicalUrl} />
+
+    <VemetricScript token="XUbrdL281fbqRrIj" />
 
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website" />
