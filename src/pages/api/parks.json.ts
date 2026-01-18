@@ -3,6 +3,21 @@ import { fetchParkSchedule, PARK_TIMEZONES, type ParkHours } from '../../lib/api
 
 const QUEUE_TIMES_BASE_URL = 'https://queue-times.com';
 
+// Timeout wrapper for fetch calls to prevent hanging
+const fetchWithTimeout = async (url: string, timeoutMs: number = 10000): Promise<Response> => {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeoutId);
+    return response;
+  } catch (error) {
+    clearTimeout(timeoutId);
+    throw error;
+  }
+};
+
 interface QueueTimesPark {
   id: number;
   name: string;
@@ -128,8 +143,9 @@ async function fetchParkWaitTimes(parkId: number): Promise<{
   lastUpdated: string;
 }> {
   try {
-    const response = await fetch(
-      `${QUEUE_TIMES_BASE_URL}/parks/${parkId}/queue_times.json`
+    const response = await fetchWithTimeout(
+      `${QUEUE_TIMES_BASE_URL}/parks/${parkId}/queue_times.json`,
+      8000 // 8 second timeout
     );
 
     if (!response.ok) {
@@ -186,8 +202,8 @@ async function fetchParkWaitTimes(parkId: number): Promise<{
 
 export const GET: APIRoute = async () => {
   try {
-    // Fetch all parks
-    const response = await fetch(`${QUEUE_TIMES_BASE_URL}/parks.json`);
+    // Fetch all parks with timeout
+    const response = await fetchWithTimeout(`${QUEUE_TIMES_BASE_URL}/parks.json`, 10000);
 
     if (!response.ok) {
       throw new Error('Failed to fetch parks from Queue-Times');

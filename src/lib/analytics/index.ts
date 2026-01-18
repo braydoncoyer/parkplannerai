@@ -104,3 +104,64 @@ export type {
   RopeDropTarget,
   ParkRopeDropStrategy,
 } from './data/ropeDropStrategy';
+
+// =============================================================================
+// NEW SCHEDULING MODULE (v2)
+// Clean, phased scheduling algorithm with anchor-based optimization
+// =============================================================================
+
+// Main scheduler functions
+export {
+  createOptimizedSchedule,
+  createOptimizedScheduleAsync,
+  createOptimizedTrip,
+  createOptimizedTripAsync,
+  estimateRideCapacity as estimateScheduleCapacity,
+  isReasonableForOneDay,
+} from './scheduling';
+
+// Scheduler types
+export type {
+  SchedulerInput,
+  SchedulerResult,
+  ScheduledItem,
+  OverflowItem,
+  ScheduleValidation,
+  ScheduleStats,
+  TripSchedulerInput,
+  TripSchedulerResult,
+  RopeDropConfig,
+  ParkHopperConfig,
+  SchedulerPreferences,
+  TimeBlock,
+  Anchor,
+  SchedulingContext,
+  TripContext,
+} from './scheduling';
+
+// Scheduler utilities
+export {
+  parseTimeToMinutes,
+  formatMinutesToTime,
+  calculateSavingsDelta,
+  findOptimalPredictionHour,
+  findPeakPredictionHour,
+} from './scheduling';
+
+// Phase exports for advanced usage
+export {
+  identifyHeadliners,
+  getRopeDropTargetIds,
+  validateRopeDropConfig,
+} from './scheduling';
+
+// Adapter for PlanWizard integration
+export {
+  optimizeScheduleWithNewScheduler,
+  shouldUseNewScheduler,
+} from './scheduling';
+
+export type {
+  LegacyOptimizationInput,
+  LegacyOptimizedSchedule,
+} from './scheduling';

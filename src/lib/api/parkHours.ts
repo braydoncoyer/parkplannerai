@@ -1,5 +1,20 @@
 // Park Hours Service - Fetches operating hours from ThemeParks.wiki API
 
+// Timeout wrapper for fetch calls to prevent hanging
+const fetchWithTimeout = async (url: string, timeoutMs: number = 8000): Promise<Response> => {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeoutId);
+    return response;
+  } catch (error) {
+    clearTimeout(timeoutId);
+    throw error;
+  }
+};
+
 /**
  * Mapping between Queue-Times park IDs and ThemeParks.wiki UUIDs
  */
@@ -125,8 +140,9 @@ export async function fetchParkSchedule(
   }
 
   try {
-    const response = await fetch(
-      `https://api.themeparks.wiki/v1/entity/${themeParkId}/schedule`
+    const response = await fetchWithTimeout(
+      `https://api.themeparks.wiki/v1/entity/${themeParkId}/schedule`,
+      8000 // 8 second timeout
     );
 
     if (!response.ok) {

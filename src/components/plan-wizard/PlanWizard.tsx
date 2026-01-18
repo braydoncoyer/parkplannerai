@@ -43,6 +43,7 @@ import {
   getDayTypeDescription,
   getPredictedWaitForHour,
   predictRideWaitTimes,
+  optimizeScheduleWithNewScheduler,
   type OptimizedSchedule,
   type MultiDaySchedule,
   type DayType,
@@ -75,6 +76,7 @@ import {
   getStrategyRideOrder,
 } from '../../lib/analytics/optimization/strategyGenerator';
 import StrategyComparison from './StrategyComparison';
+import RopeDropTargetSelector, { type RopeDropTarget } from './RopeDropTargetSelector';
 import {
   getResortForPark,
   getOtherParksInResort,
@@ -168,7 +170,8 @@ interface SelectedDate {
   date: Date;
   duration: 'full-day' | 'half-day';
   arrivalTime: string;
-  ropeDropTarget?: string; // Name of the ride to prioritize at rope drop
+  ropeDropTarget?: string; // Name of the ride to prioritize at rope drop (legacy, single target)
+  ropeDropTargets?: string[]; // Names of rides to prioritize at rope drop (new, multiple targets)
   // Per-day park hopper settings (only used when global isParkHopper is true and multiple days selected)
   isHopperDay?: boolean;      // Whether this specific day uses park hopper
   startingParkId?: number;    // Which park to start at on this day
@@ -186,6 +189,8 @@ interface ItineraryItem {
   type: 'ride' | 'break' | 'meal' | 'suggestion' | 'entertainment';
   name: string;
   expectedWait?: number;
+  avgWaitTime?: number; // Average wait time across all hours (for dev comparison)
+  devPeakWait?: number; // Peak wait time (for dev comparison - shows worst case avoided)
   notes?: string;
   land?: string;
   isReride?: boolean;
@@ -207,6 +212,7 @@ interface SkippedRide {
   name: string;
   reason: string;
   category: 'headliner' | 'popular' | 'family' | 'standard';
+  avgWaitTime?: number; // Average expected wait time for this ride
 }
 
 interface DayItinerary {
@@ -1431,57 +1437,22 @@ function DateSelection({
                           }
                         }
 
-                        // No strategy selected - show the individual target picker
+                        // No strategy selected - show the multi-target picker
                         return (
-                          <div className="pw-rope-drop-selector">
-                            <div className="pw-rope-drop-header">
-                              <Target size={16} />
-                              <span>Your Rope Drop Target</span>
-                            </div>
-                            <p className="pw-rope-drop-subtitle">
-                              Choose one ride to prioritize when the gates open
-                            </p>
-                            <div className="pw-rope-drop-targets">
-                              {ropeDropData.targets.map((target) => {
-                                const timeSaved = target.typicalMiddayWait - target.typicalRopeDropWait;
-                                const isSelected = sd.ropeDropTarget === target.rideName;
-
-                                return (
-                                  <button
-                                    key={target.rideName}
-                                    className={`pw-rope-drop-target ${isSelected ? 'selected' : ''}`}
-                                    onClick={() => onUpdateDate(sd.date, {
-                                      ropeDropTarget: isSelected ? undefined : target.rideName
-                                    })}
-                                  >
-                                    <div className="pw-target-priority">
-                                      P{target.priority}
-                                    </div>
-                                    <div className="pw-target-info">
-                                      <span className="pw-target-name">{target.rideName}</span>
-                                      <div className="pw-target-stats">
-                                        <span className="pw-target-wait">
-                                          <Timer size={12} />
-                                          ~{target.typicalRopeDropWait} min
-                                        </span>
-                                        <span className="pw-target-savings">
-                                          Save {timeSaved}+ min
-                                        </span>
-                                      </div>
-                                    </div>
-                                    <div className="pw-target-check">
-                                      {isSelected && <Check size={14} />}
-                                    </div>
-                                  </button>
-                                );
-                              })}
-                            </div>
-                            {ropeDropData.generalTips[0] && (
-                              <p className="pw-rope-drop-tip">
-                                💡 {ropeDropData.generalTips[0]}
-                              </p>
-                            )}
-                          </div>
+                          <RopeDropTargetSelector
+                            ropeDropData={ropeDropData.targets.map(t => ({
+                              rideName: t.rideName,
+                              typicalRopeDropWait: t.typicalRopeDropWait,
+                              typicalMiddayWait: t.typicalMiddayWait,
+                              priority: t.priority,
+                            }))}
+                            selectedTargets={sd.ropeDropTargets || (sd.ropeDropTarget ? [sd.ropeDropTarget] : [])}
+                            onTargetsChange={(targets) => onUpdateDate(sd.date, {
+                              ropeDropTargets: targets,
+                              ropeDropTarget: targets[0], // Keep legacy field in sync
+                            })}
+                            maxTargets={3}
+                          />
                         );
                       })()}
                     </div>
@@ -2391,7 +2362,17 @@ function TripReportView({
                           <div className="pw-headliner-header">
                             <span className="pw-headliner-name">{item.name}</span>
                             {item.expectedWait !== undefined && item.expectedWait > 0 && (
-                              <span className="pw-headliner-wait">~{item.expectedWait} min wait</span>
+                              <span className="pw-headliner-wait">
+                                ~{item.expectedWait} min wait
+                                {/* Dev mode: show peak comparison (true savings from avoiding worst case) */}
+                                {import.meta.env.DEV && item.devPeakWait !== undefined && (
+                                  <span className={item.devPeakWait > (item.expectedWait ?? 0) + 10 ? 'pw-dev-savings' : 'pw-dev-no-savings'}>
+                                    {item.devPeakWait > (item.expectedWait ?? 0)
+                                      ? ` (peak: ${item.devPeakWait}, avoiding ${item.devPeakWait - (item.expectedWait ?? 0)}m)`
+                                      : ` (peak: ${item.devPeakWait})`}
+                                  </span>
+                                )}
+                              </span>
                             )}
                           </div>
                           {item.land && <span className="pw-headliner-land"><MapPin size={12} /> {item.land}</span>}
@@ -2416,7 +2397,17 @@ function TripReportView({
                       <span className="pw-timeline-name">{item.name}</span>
                       {item.isReride && <span className="pw-reride-badge">Re-ride</span>}
                       {item.expectedWait !== undefined && item.expectedWait > 0 && (
-                        <span className="pw-timeline-wait">est. {item.expectedWait} min</span>
+                        <span className="pw-timeline-wait">
+                          est. {item.expectedWait} min
+                          {/* Dev mode: show peak comparison (true savings from avoiding worst case) */}
+                          {import.meta.env.DEV && item.devPeakWait !== undefined && (
+                            <span className={item.devPeakWait > (item.expectedWait ?? 0) + 10 ? 'pw-dev-savings' : 'pw-dev-no-savings'}>
+                              {item.devPeakWait > (item.expectedWait ?? 0)
+                                ? ` (peak: ${item.devPeakWait}, avoiding ${item.devPeakWait - (item.expectedWait ?? 0)}m)`
+                                : ` (peak: ${item.devPeakWait})`}
+                            </span>
+                          )}
+                        </span>
                       )}
                     </div>
                     {item.land && <span className="pw-timeline-land">{item.land}</span>}
@@ -2445,33 +2436,45 @@ function TripReportView({
             )}
           </div>
 
-          {/* Skipped Rides Notice */}
-          {currentDay.skippedRides && currentDay.skippedRides.length > 0 && (
+          {/* Skipped Rides Notice - Only shown on last day with trip-wide skipped rides */}
+          {activeDay === report.days.length - 1 && currentDay.skippedRides && currentDay.skippedRides.length > 0 && (
             <div className="pw-skipped-rides">
               <div className="pw-skipped-rides-header">
                 <Clock size={16} />
                 <span>Rides That Didn't Fit</span>
               </div>
               <p className="pw-skipped-rides-desc">
-                The following rides from your selection couldn't be scheduled due to time constraints.
-                Consider visiting on a less busy day or arriving earlier.
+                The following rides from your selection couldn't fit into your {report.days.length > 1 ? 'trip' : 'day'}.
+                {report.days.length > 1
+                  ? ' Consider adding another day or arriving earlier.'
+                  : ' Consider visiting on a less busy day or arriving earlier.'}
               </p>
               <div className="pw-skipped-rides-list">
                 {currentDay.skippedRides.map((ride, idx) => (
                   <div key={idx} className={`pw-skipped-ride ${ride.category}`}>
                     <span className="pw-skipped-ride-name">{ride.name}</span>
-                    <span className={`pw-skipped-ride-category ${ride.category}`}>
-                      {ride.category === 'headliner' && 'Headliner'}
-                      {ride.category === 'popular' && 'Popular'}
-                      {ride.category === 'family' && 'Family'}
-                      {ride.category === 'standard' && 'Standard'}
-                    </span>
+                    <div className="pw-skipped-ride-info">
+                      {ride.avgWaitTime !== undefined && (
+                        <span className="pw-skipped-ride-wait">
+                          <Clock size={12} />
+                          ~{ride.avgWaitTime} min avg wait
+                        </span>
+                      )}
+                      <span className={`pw-skipped-ride-category ${ride.category}`}>
+                        {ride.category === 'headliner' && 'Headliner'}
+                        {ride.category === 'popular' && 'Popular'}
+                        {ride.category === 'family' && 'Family'}
+                        {ride.category === 'standard' && 'Standard'}
+                      </span>
+                    </div>
                   </div>
                 ))}
               </div>
               <p className="pw-skipped-rides-tip">
                 <Lightbulb size={14} />
-                Tip: Try selecting fewer rides or extending your visit to fit these attractions.
+                Tip: {report.days.length > 1
+                  ? 'Try adding another day to your trip or selecting fewer rides.'
+                  : 'Try selecting fewer rides or extending your visit to fit these attractions.'}
               </p>
             </div>
           )}
@@ -3214,6 +3217,11 @@ export default function PlanWizard() {
     for (let i = 0; i < sortedDates.length; i++) {
       const sd = sortedDates[i];
       const dayType = classifyDayType(sd.date);
+
+      // Capture which rides were scheduled on PREVIOUS days (before processing this day)
+      // This is used later to avoid showing these as "skipped" on this day
+      const ridesScheduledOnPreviousDays = new Set(seenRideIds);
+
       // Sort rides by weight so headliners are scheduled first (highest weight = highest priority)
       // This ensures must-do attractions get scheduled before lower-priority rides
       const uniqueRides = [...dayAssignments[i]].sort((a, b) => {
@@ -3324,11 +3332,13 @@ export default function PlanWizard() {
             endHour: number,
             isRopeDrop: boolean,
             ropeDropTarget?: string,
+            ropeDropTargets?: string[],
             parkLabel?: string // e.g., "Park 1" or the actual park name for custom messaging
           ): Promise<void> => {
             if (parkRides.length === 0) return;
 
-            const optimized = await optimizeScheduleAsync({
+            // Use new scheduler with multi-target rope drop support
+            const optimized = await optimizeScheduleWithNewScheduler({
               selectedRides: parkRides,
               preferences: {
                 visitDate: dateKey,
@@ -3339,6 +3349,7 @@ export default function PlanWizard() {
                 ropeDropMode: isRopeDrop,
                 parkId: parkId,
                 ropeDropTarget: ropeDropTarget,
+                ropeDropTargets: ropeDropTargets, // Multi-target rope drop support
                 parkCloseHour: endHour,
                 skipFirstLastEnhancement: true, // We'll handle first/last messaging after combining parks
                 selectedStrategy: selectedStrategy || undefined, // Use selected rope drop strategy
@@ -3351,12 +3362,17 @@ export default function PlanWizard() {
                 const isReride = seenRideIds.has(rideId);
 
                 // Calculate peak and average wait for savings comparison (park hopper mode)
-                if (item.ride.hourlyPredictions && item.ride.hourlyPredictions.length > 0 && !isReride) {
+                let avgWait: number | undefined;
+                let peakWait: number | undefined;
+                if (item.ride.hourlyPredictions && item.ride.hourlyPredictions.length > 0) {
                   const predictions = item.ride.hourlyPredictions;
-                  const peakWait = Math.max(...predictions);
-                  const avgWait = Math.round(predictions.reduce((a, b) => a + b, 0) / predictions.length);
-                  totalPeakWait += peakWait;
-                  totalAvgWait += avgWait;
+                  peakWait = Math.max(...predictions);
+                  avgWait = Math.round(predictions.reduce((a, b) => a + b, 0) / predictions.length);
+                  // Only add to trip totals for non-re-rides
+                  if (!isReride) {
+                    totalPeakWait += peakWait;
+                    totalAvgWait += avgWait;
+                  }
                 }
 
                 items.push({
@@ -3364,6 +3380,8 @@ export default function PlanWizard() {
                   type: item.type,
                   name: isReride ? `${item.name} ★` : item.name,
                   expectedWait: item.expectedWait,
+                  avgWaitTime: avgWait, // For dev mode comparison
+                  devPeakWait: peakWait, // For dev mode - shows worst case avoided
                   notes: isReride
                     ? 'Re-ride! Great choice to experience this attraction again.'
                     : (item.reasoning || undefined),
@@ -3539,18 +3557,26 @@ export default function PlanWizard() {
           // PHASE 1: Morning at first park (until optimal transition time)
           // ============================================================
 
-          // Find rope drop target if it's in park 1
-          const ropeDropTargetForPark1 = sd.ropeDropTarget
-            ? park1Rides.some(r => {
-                const targetLower = sd.ropeDropTarget!.toLowerCase();
-                const rideLower = r.name.toLowerCase();
-                return rideLower === targetLower ||
-                       rideLower.includes(targetLower) ||
-                       targetLower.includes(rideLower);
-              })
-              ? sd.ropeDropTarget
-              : undefined
-            : undefined;
+          // Find rope drop targets that are in park 1
+          const matchRideInPark = (targetName: string, rides: typeof park1Rides) => {
+            const targetLower = targetName.toLowerCase();
+            return rides.some(r => {
+              const rideLower = r.name.toLowerCase();
+              return rideLower === targetLower ||
+                     rideLower.includes(targetLower) ||
+                     targetLower.includes(rideLower);
+            });
+          };
+
+          // Support both single target (legacy) and multiple targets (new)
+          const allTargets = sd.ropeDropTargets?.length
+            ? sd.ropeDropTargets
+            : (sd.ropeDropTarget ? [sd.ropeDropTarget] : []);
+
+          const ropeDropTargetsForPark1 = allTargets.filter(
+            target => matchRideInPark(target, park1Rides)
+          );
+          const ropeDropTargetForPark1 = ropeDropTargetsForPark1[0]; // Legacy single target
 
           await scheduleRidesAtPark(
             park1Rides,
@@ -3559,6 +3585,7 @@ export default function PlanWizard() {
             actualTransitionHour,
             true, // rope drop mode
             ropeDropTargetForPark1,
+            ropeDropTargetsForPark1.length > 0 ? ropeDropTargetsForPark1 : undefined,
             park1Name
           );
 
@@ -3581,7 +3608,8 @@ export default function PlanWizard() {
             park2ArrivalHour,
             parkCloseHour || 22,
             false,
-            undefined,
+            undefined, // ropeDropTarget (not used for park 2)
+            undefined, // ropeDropTargets (not used for park 2)
             park2Name
           );
 
@@ -3657,7 +3685,8 @@ export default function PlanWizard() {
             actualArrivalTime = `${openHour > 12 ? openHour - 12 : openHour}${openHour >= 12 ? 'pm' : 'am'}`;
           }
 
-          const optimized = await optimizeScheduleAsync({
+          // Use new scheduler with multi-target rope drop support
+          const optimized = await optimizeScheduleWithNewScheduler({
             selectedRides: uniqueRides,
             preferences: {
               visitDate: dateKey,
@@ -3667,7 +3696,8 @@ export default function PlanWizard() {
               includeBreaks: false, // We handle breaks manually to avoid overlap
               ropeDropMode: isRopeDropMode, // Enable rope drop optimization
               parkId: singleDayPark || undefined, // Queue-Times park ID for rope drop data (per-day or global)
-              ropeDropTarget: sd.ropeDropTarget, // User's selected rope drop priority ride
+              ropeDropTarget: sd.ropeDropTarget, // User's selected rope drop priority ride (legacy)
+              ropeDropTargets: sd.ropeDropTargets, // User's selected rope drop priority rides (new multi-target)
               parkCloseHour, // Pass actual park closing hour to cap schedule
               selectedStrategy: selectedStrategy || undefined, // Use selected rope drop strategy
               skipFirstLastEnhancement: allowRerides && fillRides.length > 0, // Skip if we'll add fill rides later
@@ -3682,12 +3712,17 @@ export default function PlanWizard() {
 
               // Calculate peak and average wait for savings comparison
               // hourlyPredictions contains wait times for each hour of the day
-              if (item.ride.hourlyPredictions && item.ride.hourlyPredictions.length > 0 && !isReride) {
+              let avgWait: number | undefined;
+              let peakWait: number | undefined;
+              if (item.ride.hourlyPredictions && item.ride.hourlyPredictions.length > 0) {
                 const predictions = item.ride.hourlyPredictions;
-                const peakWait = Math.max(...predictions);
-                const avgWait = Math.round(predictions.reduce((a, b) => a + b, 0) / predictions.length);
-                totalPeakWait += peakWait;
-                totalAvgWait += avgWait;
+                peakWait = Math.max(...predictions);
+                avgWait = Math.round(predictions.reduce((a, b) => a + b, 0) / predictions.length);
+                // Only add to trip totals for non-re-rides
+                if (!isReride) {
+                  totalPeakWait += peakWait;
+                  totalAvgWait += avgWait;
+                }
               }
 
               items.push({
@@ -3695,6 +3730,8 @@ export default function PlanWizard() {
                 type: item.type,
                 name: isReride ? `${item.name} ★` : item.name,
                 expectedWait: item.expectedWait,
+                avgWaitTime: avgWait, // For dev mode comparison
+                devPeakWait: peakWait, // For dev mode - shows worst case avoided
                 notes: isReride
                   ? 'Re-ride! Great choice to experience this attraction again.'
                   : (item.reasoning || undefined),
@@ -4652,36 +4689,8 @@ export default function PlanWizard() {
         const reRideItems = allRideItems.filter(item => item.isReride);
         const dayWait = allRideItems.reduce((sum, item) => sum + (item.expectedWait || 0), 0);
 
-        // Track which rides from user's selection couldn't be scheduled
-        // Compare uniqueRides (user's selected rides for this day) with actually scheduled rides
-        const scheduledRideNames = new Set(
-          allRideItems
-            .filter(item => !item.isReride) // Only count first-time rides, not re-rides
-            .map(item => item.name.replace(' ★', '').toLowerCase())
-        );
-
-        const skippedRides: SkippedRide[] = uniqueRides
-          .filter(ride => !scheduledRideNames.has(ride.name.toLowerCase()))
-          .map(ride => {
-            // Use ride weights data for accurate categorization
-            const rideWeight = getRideWeight(ride.name);
-            const isMustDo = rideWeight.mustDo;
-            return {
-              name: ride.name,
-              reason: isMustDo
-                ? 'High-priority attraction that couldn\'t fit due to time constraints'
-                : 'Not enough time in the day due to wait times at other attractions',
-              category: rideWeight.category,
-            };
-          })
-          // Sort by weight (highest first) so most important skipped rides are shown first
-          .sort((a, b) => {
-            const weightA = getRideWeight(a.name).weight;
-            const weightB = getRideWeight(b.name).weight;
-            return weightB - weightA; // Higher weight = more important = show first
-          });
-
         // dateKey already declared above in end-of-day gap filling
+        // NOTE: skippedRides are calculated AFTER the loop and added only to the last day
         dayItineraries.push({
           date: sd.date,
           dayNumber: i + 1,
@@ -4696,7 +4705,7 @@ export default function PlanWizard() {
             ...(reRideItems.length > 0 ? [`${reRideItems.length} re-ride${reRideItems.length > 1 ? 's' : ''} added to fill your day`] : []),
           ],
           parkHours: parkHoursMap[dateKey],
-          skippedRides: skippedRides.length > 0 ? skippedRides : undefined,
+          // skippedRides will be added to last day after all days are processed
         });
 
         totalWaitTime += dayWait;
@@ -4717,6 +4726,39 @@ export default function PlanWizard() {
           parkHours: parkHoursMap[dateKey],
         });
       }
+    }
+
+    // Calculate trip-wide skipped rides: rides from user's selection that weren't scheduled anywhere
+    // seenRideIds now contains ALL rides scheduled across the entire trip
+    const tripSkippedRides: SkippedRide[] = selectedRideObjects
+      .filter(ride => {
+        const rideIdNum = typeof ride.id === 'number' ? ride.id : parseInt(String(ride.id));
+        return !seenRideIds.has(rideIdNum); // Not scheduled anywhere in the trip
+      })
+      .map(ride => {
+        const rideWeight = getRideWeight(ride.name);
+        const isMustDo = rideWeight.mustDo;
+        const avgWaitTime = ride.hourlyPredictions && ride.hourlyPredictions.length > 0
+          ? Math.round(ride.hourlyPredictions.reduce((sum: number, wt: number) => sum + wt, 0) / ride.hourlyPredictions.length)
+          : undefined;
+        return {
+          name: ride.name,
+          reason: isMustDo
+            ? 'High-priority attraction that couldn\'t fit due to time constraints'
+            : 'Not enough time in the day due to wait times at other attractions',
+          category: rideWeight.category,
+          avgWaitTime,
+        };
+      })
+      .sort((a, b) => {
+        const weightA = getRideWeight(a.name).weight;
+        const weightB = getRideWeight(b.name).weight;
+        return weightB - weightA; // Higher weight = more important = show first
+      });
+
+    // Add skipped rides only to the LAST day of the trip
+    if (tripSkippedRides.length > 0 && dayItineraries.length > 0) {
+      dayItineraries[dayItineraries.length - 1].skippedRides = tripSkippedRides;
     }
 
     // Generate strategy summary
