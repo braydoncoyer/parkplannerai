@@ -13,13 +13,13 @@ import {
   Line,
   Legend,
 } from 'recharts';
-import { PredictionConfidenceBadge } from './PredictionConfidenceBadge';
 import './AnalyticsDashboard.css';
 
 interface Park {
   id: number;
   name: string;
   operator: string;
+  isOpen?: boolean;
   stats: {
     avgWaitTime: number;
     maxWaitTime: number;
@@ -27,6 +27,170 @@ interface Park {
     totalRides: number;
     crowdLevel: string;
   };
+}
+
+function getBusynessLevel(avgWait: number, crowdLevel: string): { level: 'low' | 'moderate' | 'busy' | 'very-busy' | 'closed'; label: string; color: string } {
+  if (avgWait === 0) {
+    return { level: 'closed', label: 'Closed', color: '#94a3b8' };
+  }
+  if (crowdLevel === 'low' || avgWait < 20) {
+    return { level: 'low', label: 'Low Crowds', color: '#65a30d' };
+  }
+  if (crowdLevel === 'moderate' || avgWait < 35) {
+    return { level: 'moderate', label: 'Moderate', color: '#d97706' };
+  }
+  if (crowdLevel === 'busy' || avgWait < 50) {
+    return { level: 'busy', label: 'Busy', color: '#ea580c' };
+  }
+  return { level: 'very-busy', label: 'Very Busy', color: '#dc2626' };
+}
+
+type SortKey = 'name' | 'operator' | 'avgWait' | 'ridesOpen' | 'status';
+type SortDirection = 'asc' | 'desc';
+
+function LiveParkBusyness({ parks, loading }: { parks: Park[]; loading: boolean }) {
+  const [sortKey, setSortKey] = useState<SortKey>('avgWait');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+
+  const handleSort = (key: SortKey) => {
+    if (sortKey === key) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortKey(key);
+      setSortDirection(key === 'name' ? 'asc' : 'desc');
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="busyness-section">
+        <div className="busyness-header">
+          <h2>Live Park Busyness</h2>
+          <span className="chart-badge live">Real-Time</span>
+        </div>
+        <div className="busyness-loading">Loading park data...</div>
+      </div>
+    );
+  }
+
+  // Sort parks based on current sort key and direction
+  const sortedParks = [...parks].sort((a, b) => {
+    const aOpen = a.isOpen !== false && a.stats.avgWaitTime > 0;
+    const bOpen = b.isOpen !== false && b.stats.avgWaitTime > 0;
+
+    // Always put closed parks at the bottom
+    if (aOpen && !bOpen) return -1;
+    if (!aOpen && bOpen) return 1;
+    if (!aOpen && !bOpen) return a.name.localeCompare(b.name);
+
+    let comparison = 0;
+    switch (sortKey) {
+      case 'name':
+        comparison = a.name.localeCompare(b.name);
+        break;
+      case 'operator':
+        comparison = a.operator.localeCompare(b.operator);
+        break;
+      case 'avgWait':
+        comparison = a.stats.avgWaitTime - b.stats.avgWaitTime;
+        break;
+      case 'ridesOpen':
+        comparison = a.stats.ridesOpen - b.stats.ridesOpen;
+        break;
+      case 'status':
+        comparison = a.stats.avgWaitTime - b.stats.avgWaitTime;
+        break;
+    }
+    return sortDirection === 'asc' ? comparison : -comparison;
+  });
+
+  const getSortIndicator = (key: SortKey) => {
+    if (sortKey !== key) return <span className="sort-indicator inactive">↕</span>;
+    return <span className="sort-indicator active">{sortDirection === 'asc' ? '↑' : '↓'}</span>;
+  };
+
+  const formatParkName = (park: Park) => {
+    return park.name
+      .replace('Walt Disney World - ', '')
+      .replace('Disneyland Resort - ', '')
+      .replace('Disneyland Paris - ', '')
+      .replace(' At Universal Orlando', '')
+      .replace('Universal ', '');
+  };
+
+  return (
+    <div className="busyness-section">
+      <div className="busyness-header">
+        <h2>Live Park Busyness</h2>
+        <span className="chart-badge live">Real-Time</span>
+      </div>
+      <p className="chart-subtitle">Compare wait times across all parks at a glance</p>
+
+      <div className="busyness-table-wrapper">
+        <table className="busyness-table">
+          <thead>
+            <tr>
+              <th className="th-park sortable" onClick={() => handleSort('name')}>
+                Park {getSortIndicator('name')}
+              </th>
+              <th className="th-operator sortable" onClick={() => handleSort('operator')}>
+                Operator {getSortIndicator('operator')}
+              </th>
+              <th className="th-wait sortable" onClick={() => handleSort('avgWait')}>
+                Avg Wait {getSortIndicator('avgWait')}
+              </th>
+              <th className="th-rides sortable" onClick={() => handleSort('ridesOpen')}>
+                Rides Open {getSortIndicator('ridesOpen')}
+              </th>
+              <th className="th-status sortable" onClick={() => handleSort('status')}>
+                Status {getSortIndicator('status')}
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {sortedParks.map((park) => {
+              const busyness = getBusynessLevel(park.stats.avgWaitTime, park.stats.crowdLevel);
+              const isOpen = park.isOpen !== false && park.stats.avgWaitTime > 0;
+              return (
+                <tr key={park.id} className={!isOpen ? 'park-closed' : ''}>
+                  <td className="td-park">
+                    <span className="park-name">{formatParkName(park)}</span>
+                  </td>
+                  <td className="td-operator">
+                    <span className={`operator-badge ${park.operator.toLowerCase()}`}>{park.operator}</span>
+                  </td>
+                  <td className="td-wait">
+                    {isOpen ? (
+                      <span className="wait-value">{park.stats.avgWaitTime}<span className="wait-unit">min</span></span>
+                    ) : (
+                      <span className="wait-closed">--</span>
+                    )}
+                  </td>
+                  <td className="td-rides">
+                    {isOpen ? (
+                      <span className="rides-fraction">
+                        <span className="rides-open">{park.stats.ridesOpen}</span>
+                        <span className="rides-divider">/</span>
+                        <span className="rides-total">{park.stats.totalRides}</span>
+                      </span>
+                    ) : (
+                      <span className="rides-closed">--</span>
+                    )}
+                  </td>
+                  <td className="td-status">
+                    <span className={`status-indicator ${busyness.level}`} style={{ '--status-color': busyness.color } as React.CSSProperties}>
+                      <span className="status-dot"></span>
+                      <span className="status-label">{busyness.label}</span>
+                    </span>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
 }
 
 interface ParksResponse {
@@ -384,9 +548,9 @@ function LandComparisonChart({
 }: {
   data: { land: string; fullName: string; avgWait: number; samples: number }[];
   isRealData: boolean;
-  parks: { externalId: string; name: string }[];
-  selectedPark: string | undefined;
-  onParkChange: (parkId: string | undefined) => void;
+  parks: { externalId: string; name: string; operator: string }[];
+  selectedPark: string;
+  onParkChange: (parkId: string) => void;
 }) {
   // Calculate dynamic height based on number of items
   const chartHeight = Math.max(200, data.length * 32 + 40);
@@ -397,9 +561,14 @@ function LandComparisonChart({
       .replace('Disneyland Resort - ', '')
       .replace('Walt Disney World - ', '')
       .replace('Disneyland Paris - ', '')
+      .replace(' At Universal Orlando', '')
       .replace(' Theme Park', '')
       .replace(' Park', '');
   };
+
+  // Group parks by operator
+  const disneyParks = parks.filter(p => p.operator === 'Disney');
+  const universalParks = parks.filter(p => p.operator === 'Universal');
 
   return (
     <div className="chart-container">
@@ -415,15 +584,25 @@ function LandComparisonChart({
         {parks.length > 0 && (
           <select
             className="park-selector"
-            value={selectedPark || ''}
-            onChange={(e) => onParkChange(e.target.value || undefined)}
+            value={selectedPark}
+            onChange={(e) => onParkChange(e.target.value)}
           >
-            <option value="">All Disney Parks</option>
-            {parks.map((park) => (
-              <option key={park.externalId} value={park.externalId}>
-                {shortenParkName(park.name)}
-              </option>
-            ))}
+            <optgroup label="Disney Parks">
+              {disneyParks.map((park) => (
+                <option key={park.externalId} value={park.externalId}>
+                  {shortenParkName(park.name)}
+                </option>
+              ))}
+            </optgroup>
+            {universalParks.length > 0 && (
+              <optgroup label="Universal Parks">
+                {universalParks.map((park) => (
+                  <option key={park.externalId} value={park.externalId}>
+                    {shortenParkName(park.name)}
+                  </option>
+                ))}
+              </optgroup>
+            )}
           </select>
         )}
       </div>
@@ -634,7 +813,8 @@ function DataCollectionStatus({
 export default function AnalyticsDashboard() {
   const [data, setData] = useState<ParksResponse | null>(null);
   const [loading, setLoading] = useState(true);
-  const [selectedLandPark, setSelectedLandPark] = useState<string | undefined>(undefined);
+  // Default to Disneyland (external ID "16") for land comparison
+  const [selectedLandPark, setSelectedLandPark] = useState<string>('16');
   const [selectedHourlyPark, setSelectedHourlyPark] = useState<string | undefined>(undefined);
 
   // Convex queries for historical data
@@ -649,12 +829,12 @@ export default function AnalyticsDashboard() {
   const allParks = useQuery(api.queries.parks.getAllParks);
   const landComparison = useQuery(
     api.queries.analytics.getLandComparison,
-    selectedLandPark ? { days: 14, parkExternalId: selectedLandPark } : { days: 14 }
+    { days: 14, parkExternalId: selectedLandPark }
   );
   const parkHours = useQuery(api.queries.analytics.getParkHoursAnalysis, { days: 30 });
 
-  // Filter to Disney parks for land comparison dropdown
-  const disneyParks = allParks?.filter(p => p.operator === 'Disney') ?? [];
+  // Filter to Disney and Universal parks for land comparison dropdown
+  const parksWithLands = allParks?.filter(p => p.operator === 'Disney' || p.operator === 'Universal') ?? [];
 
   useEffect(() => {
     fetch('/api/parks.json')
@@ -667,15 +847,9 @@ export default function AnalyticsDashboard() {
   }, []);
 
   // Calculate insights from current data
-  const bestPark = data?.parks.reduce((best, park) =>
-    park.stats.avgWaitTime < best.stats.avgWaitTime ? park : best
-  , data.parks[0]);
-
   const busiestPark = data?.parks.reduce((busiest, park) =>
     park.stats.avgWaitTime > busiest.stats.avgWaitTime ? park : busiest
   , data.parks[0]);
-
-  const lowCrowdParks = data?.parks.filter((p) => p.stats.crowdLevel === 'low').length || 0;
 
   // Use Convex insights if available, otherwise fallback to hardcoded
   const bestDayValue = insights?.hasEnoughData && insights.bestDay
@@ -698,31 +872,10 @@ export default function AnalyticsDashboard() {
       {/* Data Collection Status */}
       <DataCollectionStatus status={collectionStatus} />
 
-      {/* Current Insights */}
+      {/* Historical Insights */}
       <section className="insights-section">
-        <h2>Live Insights</h2>
+        <h2>Historical Insights</h2>
         <div className="insights-grid">
-          <InsightCard
-            icon="🎯"
-            title="Best Park Right Now"
-            value={bestPark?.name.split(' ').slice(0, 2).join(' ') || 'Loading...'}
-            description={`${bestPark?.stats.avgWaitTime || 0} min average wait`}
-            trend="down"
-          />
-          <InsightCard
-            icon="🔥"
-            title="Busiest Park"
-            value={busiestPark?.name.split(' ').slice(0, 2).join(' ') || 'Loading...'}
-            description={`${busiestPark?.stats.avgWaitTime || 0} min average wait`}
-            trend="up"
-          />
-          <InsightCard
-            icon="✨"
-            title="Low Crowd Parks"
-            value={`${lowCrowdParks} parks`}
-            description="Under 20 min average wait"
-            trend="neutral"
-          />
           <InsightCard
             icon="📅"
             title="Best Day to Visit"
@@ -730,57 +883,34 @@ export default function AnalyticsDashboard() {
             description={bestDayDescription}
             trend="down"
           />
+          <InsightCard
+            icon="📊"
+            title="Worst Day to Visit"
+            value={insights?.hasEnoughData && insights.worstDay ? insights.worstDay.name : 'Saturday'}
+            description={insights?.hasEnoughData && insights.worstDay ? `${insights.worstDay.avgWait} min avg wait` : 'Based on typical patterns'}
+            trend="up"
+          />
+          <InsightCard
+            icon="🔥"
+            title="Busiest Park Today"
+            value={busiestPark?.name.split(' ').slice(0, 2).join(' ') || 'Loading...'}
+            description={`${busiestPark?.stats.avgWaitTime || 0} min average wait`}
+            trend="up"
+          />
+          <InsightCard
+            icon="🗓️"
+            title="Best Month to Visit"
+            value="September"
+            description="Historically lowest crowds"
+            trend="down"
+          />
         </div>
       </section>
 
-      {/* Historical Insights (when available) */}
-      {insights?.hasEnoughData && (
-        <section className="insights-section historical-insights">
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-            <h2 style={{ margin: 0 }}>Historical Insights</h2>
-            <PredictionConfidenceBadge
-              confidence={
-                collectionStatus?.milestones.fourWeeks ? 'high' :
-                collectionStatus?.milestones.twoWeeks ? 'medium' : 'low'
-              }
-              source="convex"
-              showSource
-            />
-          </div>
-          <div className="insights-grid">
-            <InsightCard
-              icon="📈"
-              title="Best Time to Visit"
-              value={insights.bestHour?.time || 'Morning'}
-              description={`${insights.bestHour?.avgWait || 0} min avg wait`}
-              trend="down"
-            />
-            <InsightCard
-              icon="⏰"
-              title="Busiest Time"
-              value={insights.worstHour?.time || 'Afternoon'}
-              description={`${insights.worstHour?.avgWait || 0} min avg wait`}
-              trend="up"
-            />
-            <InsightCard
-              icon="📊"
-              title="Worst Day to Visit"
-              value={insights.worstDay?.name || 'Saturday'}
-              description={`${insights.worstDay?.avgWait || 0} min avg wait`}
-              trend="up"
-            />
-            {insights.weekOverWeekTrend && (
-              <InsightCard
-                icon="📉"
-                title="Week-over-Week"
-                value={`${insights.weekOverWeekTrend.percentChange > 0 ? '+' : ''}${insights.weekOverWeekTrend.percentChange}%`}
-                description={`Crowds are ${insights.weekOverWeekTrend.direction}`}
-                trend={insights.weekOverWeekTrend.direction === 'up' ? 'up' : insights.weekOverWeekTrend.direction === 'down' ? 'down' : 'neutral'}
-              />
-            )}
-          </div>
-        </section>
-      )}
+      {/* Live Park Busyness Table */}
+      <section className="chart-section">
+        <LiveParkBusyness parks={data?.parks || []} loading={loading} />
+      </section>
 
       {/* Current Park Comparison */}
       {data && data.parks.length > 0 && (
@@ -802,7 +932,7 @@ export default function AnalyticsDashboard() {
         <LandComparisonChart
           data={landComparison?.data ?? []}
           isRealData={landComparison?.hasEnoughData ?? false}
-          parks={disneyParks}
+          parks={parksWithLands}
           selectedPark={selectedLandPark}
           onParkChange={setSelectedLandPark}
         />

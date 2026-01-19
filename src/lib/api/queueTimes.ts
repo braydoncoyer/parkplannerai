@@ -84,9 +84,13 @@ export async function fetchParkWaitTimes(
     const data: QueueTimesRidesResponse = await response.json();
 
     // Flatten rides from all lands
+    // Filter out "Single Rider" entries - these are queue options, not separate rides
     const rides: QueueTimesRide[] = [];
     for (const land of data.lands) {
-      rides.push(...land.rides);
+      const filteredRides = land.rides.filter(
+        (ride) => !ride.name.toLowerCase().includes('single rider')
+      );
+      rides.push(...filteredRides);
     }
 
     return {
