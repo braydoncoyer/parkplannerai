@@ -1494,19 +1494,27 @@ function MultiDayHopperConfig({
   );
 
   // Initialize days with default values if not set
+  // Alternate starting parks for multi-day trips to avoid "Travel to X" when already at X
   useEffect(() => {
-    for (const sd of sortedDates) {
+    for (let i = 0; i < sortedDates.length; i++) {
+      const sd = sortedDates[i];
       if (sd.isHopperDay === undefined) {
         const otherParks = resortParks.filter(p => p.id !== selectedPark);
+        const isEvenDay = i % 2 === 0;
+
+        // Alternate: Day 1 = Park A -> Park B, Day 2 = Park B -> Park A
+        const dayStartPark = isEvenDay ? selectedPark : (otherParks[0]?.id ?? selectedPark);
+        const daySecondPark = isEvenDay ? (otherParks[0]?.id ?? undefined) : selectedPark;
+
         onUpdateDate(sd.date, {
           isHopperDay: true,
-          startingParkId: selectedPark,
-          secondParkId: otherParks.length > 0 ? otherParks[0].id : undefined,
+          startingParkId: dayStartPark,
+          secondParkId: daySecondPark,
           transitionTime: '2:00 PM',
         });
       }
     }
-  }, []);
+  }, [sortedDates.length]);
 
   const getParkInfo = (parkId: number) => resortParks.find(p => p.id === parkId);
   const getOtherParks = (parkId: number) => resortParks.filter(p => p.id !== parkId);
@@ -2758,6 +2766,14 @@ export default function PlanWizard() {
     setIsParkHopper(false);
     setSecondParkId(null);
     setSecondParkRides([]);
+    // Clear per-day park hopper settings
+    setSelectedDates(prev => prev.map(sd => ({
+      ...sd,
+      isHopperDay: undefined,
+      startingParkId: undefined,
+      secondParkId: undefined,
+      transitionTime: undefined,
+    })));
   }, [selectedPark]);
 
   // Fetch park hours when park and dates change
@@ -3036,6 +3052,18 @@ export default function PlanWizard() {
       ridesByLand[land].push(ride);
     }
 
+    // Build a map of which parks each day visits (for park-aware distribution)
+    const dayParks: Array<Set<number>> = sortedDates.map((sd) => {
+      const dayIsHopper = sd.isHopperDay ?? isParkHopper;
+      const dayStartPark = sd.startingParkId ?? selectedPark;
+      const daySecondPark = sd.secondParkId ?? secondParkId;
+
+      const parks = new Set<number>();
+      if (dayStartPark) parks.add(dayStartPark);
+      if (dayIsHopper && daySecondPark) parks.add(daySecondPark);
+      return parks;
+    });
+
     // PHASE 1: Distribute rides by land - keep rides from the same land on the same day
     const dayAssignments: Array<typeof selectedRideObjects> = sortedDates.map(() => []);
     const landsPerDay: Array<Set<string>> = sortedDates.map(() => new Set());
@@ -3064,14 +3092,28 @@ export default function PlanWizard() {
     }
 
     // First, assign headliners evenly, tracking their lands (skip already-assigned rides)
+    // Only assign to days that will visit the headliner's park
     const headliners = sortedRides.filter(r =>
       categorizeRide(r.name) === 'headliner' && !assignedRideIds.has(r.id)
     );
-    headliners.forEach((ride, idx) => {
-      const dayIdx = idx % sortedDates.length;
-      if (dayAssignments[dayIdx].length < dayCapacities[dayIdx]) {
-        dayAssignments[dayIdx].push(ride);
-        landsPerDay[dayIdx].add(ride.land || 'Other');
+    headliners.forEach((ride) => {
+      // Find days that visit this ride's park
+      const rideParkId = ride.parkId;
+      if (rideParkId === undefined) return; // Skip rides without a parkId
+      const eligibleDays = sortedDates
+        .map((_, idx) => idx)
+        .filter(idx => dayParks[idx].has(rideParkId));
+
+      if (eligibleDays.length === 0) return; // No eligible day for this park
+
+      // Pick the eligible day with the fewest headliners assigned
+      const bestDayIdx = eligibleDays.reduce((best, idx) =>
+        dayAssignments[idx].length < dayAssignments[best].length ? idx : best
+      , eligibleDays[0]);
+
+      if (dayAssignments[bestDayIdx].length < dayCapacities[bestDayIdx]) {
+        dayAssignments[bestDayIdx].push(ride);
+        landsPerDay[bestDayIdx].add(ride.land || 'Other');
         assignedRideIds.add(ride.id);
       }
     });
@@ -3084,6 +3126,8 @@ export default function PlanWizard() {
 
     for (const ride of nonHeadliners) {
       const rideLand = ride.land || 'Other';
+      const rideParkId = ride.parkId;
+      if (rideParkId === undefined) continue; // Skip rides without a parkId
 
       // Find the best day: prefer days with same land, then days with capacity
       let bestDayIdx = -1;
@@ -3091,6 +3135,10 @@ export default function PlanWizard() {
 
       for (let dayIdx = 0; dayIdx < sortedDates.length; dayIdx++) {
         if (dayAssignments[dayIdx].length >= dayCapacities[dayIdx]) continue;
+
+        // Park match check - ride must be from a park this day visits
+        const rideIsInDaysPark = dayParks[dayIdx].has(rideParkId);
+        if (!rideIsInDaysPark) continue; // Skip this day entirely if park doesn't match
 
         const initialTarget = Math.ceil(selectedRideObjects.length / sortedDates.length);
         const hasCapacity = dayAssignments[dayIdx].length < initialTarget + 2;
@@ -3109,14 +3157,19 @@ export default function PlanWizard() {
       }
 
       if (bestDayIdx === -1) {
-        // Find day with fewest rides
-        bestDayIdx = dayAssignments
+        // Find day with fewest rides that also visits this ride's park
+        const eligible = dayAssignments
           .map((arr, idx) => ({ idx, len: arr.length }))
-          .filter(d => d.len < dayCapacities[d.idx])
-          .sort((a, b) => a.len - b.len)[0]?.idx ?? 0;
+          .filter(d => d.len < dayCapacities[d.idx] && dayParks[d.idx].has(rideParkId))
+          .sort((a, b) => a.len - b.len);
+
+        if (eligible.length > 0) {
+          bestDayIdx = eligible[0].idx;
+        }
       }
 
-      if (dayAssignments[bestDayIdx].length < dayCapacities[bestDayIdx]) {
+      // Only assign if we found an eligible day
+      if (bestDayIdx !== -1 && dayAssignments[bestDayIdx].length < dayCapacities[bestDayIdx]) {
         dayAssignments[bestDayIdx].push(ride);
         landsPerDay[bestDayIdx].add(rideLand);
         assignedRideIds.add(ride.id);
@@ -3139,10 +3192,14 @@ export default function PlanWizard() {
         if (spotsToFill > 0) {
         // Get rides that could be re-ridden
         // Priority: 1) headliners in same land, 2) headliners, 3) popular in same land, 4) popular
+        // Only include rides from parks this day visits
         const potentialRerides = sortedRides
           .filter(r => {
             const cat = categorizeRide(r.name);
-            return cat === 'headliner' || cat === 'popular';
+            const isEligibleCategory = cat === 'headliner' || cat === 'popular';
+            const rParkId = r.parkId;
+            const isInDaysPark = rParkId !== undefined && dayParks[dayIdx].has(rParkId);
+            return isEligibleCategory && isInDaysPark;
           })
           .sort((a, b) => {
             const catA = categorizeRide(a.name);
@@ -4050,13 +4107,16 @@ export default function PlanWizard() {
 
           // DYNAMIC BREAK FINDER: Find optimal break time within a window
           // Finds a valid slot BETWEEN rides, ensuring break starts AFTER previous ride completes
+          // segmentStartIdx/segmentEndIdx: Optional bounds to constrain search to a park segment
           const findOptimalBreakTime = (
             windowStartMinutes: number,
             windowEndMinutes: number,
             defaultMinutes: number,
-            breakDuration: number
+            breakDuration: number,
+            segmentStartIdx: number = 0,
+            segmentEndIdx: number = items.length
           ): { time: string; avgWait: number; note: string; insertAfterIndex: number } => {
-            // Get ALL rides with their ACTUAL index in the items array (not filtered index)
+            // Get rides within the specified segment with their ACTUAL index in items array
             const allRides: Array<{
               item: ItineraryItem;
               actualIndex: number;
@@ -4065,7 +4125,7 @@ export default function PlanWizard() {
               wait: number;
             }> = [];
 
-            for (let i = 0; i < items.length; i++) {
+            for (let i = segmentStartIdx; i < segmentEndIdx; i++) {
               const item = items[i];
               if (item.type === 'ride') {
                 allRides.push({
@@ -4209,21 +4269,34 @@ export default function PlanWizard() {
           };
 
           // LUNCH BREAK - Dynamic within 11:00 AM - 1:00 PM window
+          // For hopper days, constrain lunch to Park 1 segment (before transition)
           const LUNCH_WINDOW_START = 11 * 60; // 11:00 AM in minutes
           const LUNCH_WINDOW_END = 13 * 60;   // 1:00 PM in minutes
           const LUNCH_DEFAULT = 12 * 60;      // 12:00 PM default
           const LUNCH_DURATION = 45;          // 45 min lunch
 
-          const optimalLunch = findOptimalBreakTime(LUNCH_WINDOW_START, LUNCH_WINDOW_END, LUNCH_DEFAULT, LUNCH_DURATION);
+          // Find transition index to constrain break searches to correct park segments
+          const transitionIdxForBreaks = items.findIndex(item =>
+            item.type === 'break' && item.name?.includes('Travel to')
+          );
+          const park1EndIdx = transitionIdxForBreaks >= 0 ? transitionIdxForBreaks : items.length;
+          const park2StartIdx = transitionIdxForBreaks >= 0 ? transitionIdxForBreaks + 1 : items.length;
+
+          // Lunch is in Park 1 segment (before transition)
+          const optimalLunch = findOptimalBreakTime(LUNCH_WINDOW_START, LUNCH_WINDOW_END, LUNCH_DEFAULT, LUNCH_DURATION, 0, park1EndIdx);
           const lunchLand = findCurrentLand(optimalLunch.time);
           const lunchActivities = getLandActivities(lunchLand);
           const lunchDining = lunchActivities?.dining.find(d => d.type === 'quick-service' || d.type === 'table-service');
           const lunchShopping = lunchActivities?.shopping[0];
 
-          // Insert AFTER the specified ride index
-          const lunchPosition = optimalLunch.insertAfterIndex >= 0
+          // Insert AFTER the specified ride index, but ensure it's before transition
+          let lunchPosition = optimalLunch.insertAfterIndex >= 0
             ? optimalLunch.insertAfterIndex + 1
             : 0;
+          // Ensure lunch is inserted before transition
+          if (transitionIdxForBreaks >= 0 && lunchPosition > transitionIdxForBreaks) {
+            lunchPosition = transitionIdxForBreaks;
+          }
 
           insertBreakAndShiftTimes({
             time: optimalLunch.time,
@@ -4290,17 +4363,30 @@ export default function PlanWizard() {
               }
             }
 
-            // Re-run findOptimalBreakTime since items array has changed after lunch insertion
-            const optimalDinner = findOptimalBreakTime(DINNER_WINDOW_START, DINNER_WINDOW_END, DINNER_DEFAULT, DINNER_DURATION);
+            // Re-find transition index since lunch was inserted and shifted indices
+            const transitionIdxForDinner = items.findIndex(item =>
+              item.type === 'break' && item.name?.includes('Travel to')
+            );
+            const park2StartIdxForDinner = transitionIdxForDinner >= 0 ? transitionIdxForDinner + 1 : 0;
+
+            // Dinner is in Park 2 segment (after transition)
+            const optimalDinner = findOptimalBreakTime(
+              DINNER_WINDOW_START, DINNER_WINDOW_END, DINNER_DEFAULT, DINNER_DURATION,
+              park2StartIdxForDinner, items.length
+            );
             const dinnerLand = findCurrentLand(optimalDinner.time);
             const dinnerActivities = getLandActivities(dinnerLand);
             const dinnerDining = dinnerActivities?.dining.find(d => d.type === 'table-service' || d.type === 'quick-service');
             const dinnerShopping = dinnerActivities?.shopping[0];
 
-            // Find the correct position in the updated array
-            const dinnerPosition = optimalDinner.insertAfterIndex >= 0
+            // Find the correct position in the updated array, ensure it's after transition
+            let dinnerPosition = optimalDinner.insertAfterIndex >= 0
               ? optimalDinner.insertAfterIndex + 1
               : items.length;
+            // Ensure dinner is inserted after transition
+            if (transitionIdxForDinner >= 0 && dinnerPosition <= transitionIdxForDinner) {
+              dinnerPosition = transitionIdxForDinner + 1;
+            }
 
             insertBreakAndShiftTimes({
               time: optimalDinner.time,
@@ -4321,8 +4407,130 @@ export default function PlanWizard() {
             }, dinnerPosition, DINNER_DURATION);
           }
 
-          // Final sort to ensure correct chronological order
-          items.sort((a, b) => parseTimeToMinutes(a.time) - parseTimeToMinutes(b.time));
+          // =============================================
+          // FILL GAPS WITHIN PARK SEGMENTS (Hopper days only)
+          // Check for large gaps in each park segment and fill with rides
+          // =============================================
+          if (dayIsHopper) {
+            const transitionIdxForGapFill = items.findIndex(item =>
+              item.type === 'break' && item.name?.includes('Travel to')
+            );
+
+            if (transitionIdxForGapFill >= 0) {
+              const transitionTime = parseTimeToMinutes(items[transitionIdxForGapFill].time);
+
+              // Get park-specific rides for this hopper day
+              const gapFillPark1Rides = uniqueRides.filter(r => r.parkId === dayStartingPark);
+
+              // Helper to find gaps in a segment
+              const findGapsInSegment = (segmentItems: ItineraryItem[], segmentStartMinutes: number, segmentEndMinutes: number): Array<{ start: number; end: number; duration: number }> => {
+                const gaps: Array<{ start: number; end: number; duration: number }> = [];
+                let currentTime = segmentStartMinutes;
+
+                // Sort by time first
+                const sortedItems = [...segmentItems].sort((a, b) => parseTimeToMinutes(a.time) - parseTimeToMinutes(b.time));
+
+                for (const item of sortedItems) {
+                  const itemStart = parseTimeToMinutes(item.time);
+                  const itemDuration = item.type === 'ride'
+                    ? (item.expectedWait || 0) + 10
+                    : (item.breakDuration || 30);
+                  const itemEnd = itemStart + itemDuration;
+
+                  // Check for gap before this item
+                  if (itemStart - currentTime >= 45) { // At least 45 min gap to fit a ride
+                    gaps.push({ start: currentTime, end: itemStart, duration: itemStart - currentTime });
+                  }
+                  currentTime = Math.max(currentTime, itemEnd);
+                }
+
+                // Check for gap at the end of segment
+                if (segmentEndMinutes - currentTime >= 45) {
+                  gaps.push({ start: currentTime, end: segmentEndMinutes, duration: segmentEndMinutes - currentTime });
+                }
+
+                return gaps;
+              };
+
+              // Get Park 1 segment items (before transition)
+              const park1SegmentItems = items.slice(0, transitionIdxForGapFill);
+
+              // Calculate segment boundaries
+              const dayStartMinutes = parseTimeToMinutes(sd.arrivalTime === 'rope-drop'
+                ? `${dayParkHours?.openHour || 9}:00 AM`
+                : sd.arrivalTime);
+
+              // Find gaps in Park 1 segment
+              const park1Gaps = findGapsInSegment(park1SegmentItems, dayStartMinutes, transitionTime);
+
+              // Get unscheduled Park 1 rides that could fill gaps
+              const scheduledRideNames = new Set(items.filter(i => i.type === 'ride').map(i => i.name?.replace(' ★', '').toLowerCase()));
+              const unscheduledPark1Rides = gapFillPark1Rides.filter(r => !scheduledRideNames.has(r.name.toLowerCase()));
+
+              // Fill Park 1 gaps with unscheduled rides
+              let currentTransitionIdx = transitionIdxForGapFill;
+              for (const gap of park1Gaps) {
+                if (unscheduledPark1Rides.length === 0) break;
+
+                let gapCurrentTime = gap.start;
+                const gapEndTime = gap.end;
+
+                // Try to fit rides into this gap
+                for (let i = 0; i < unscheduledPark1Rides.length && gapCurrentTime + 30 <= gapEndTime; i++) {
+                  const ride = unscheduledPark1Rides[i];
+                  const rideHour = Math.floor(gapCurrentTime / 60);
+                  const predictedWait = ride.hourlyPredictions
+                    ? getPredictedWaitForHour({ hourlyPredictions: ride.hourlyPredictions } as any, rideHour)
+                    : (ride.waitTime || 30);
+                  const rideTotalTime = predictedWait + 10; // wait + ride duration
+
+                  if (gapCurrentTime + rideTotalTime <= gapEndTime) {
+                    // Add ride to fill gap - insert before transition
+                    items.splice(currentTransitionIdx, 0, {
+                      time: minutesToTimeString(gapCurrentTime),
+                      type: 'ride',
+                      name: ride.name,
+                      expectedWait: predictedWait,
+                      notes: 'Filling gap in schedule.',
+                      land: ride.land,
+                      isReride: false,
+                    });
+                    // Update transition index since we inserted before it
+                    currentTransitionIdx++;
+
+                    // Mark as scheduled
+                    scheduledRideNames.add(ride.name.toLowerCase());
+                    unscheduledPark1Rides.splice(i, 1);
+                    i--; // Adjust index since we removed an element
+
+                    gapCurrentTime += rideTotalTime + 5; // Add 5 min buffer between rides
+                  }
+                }
+              }
+            }
+          }
+
+          // Final sort - preserve park segment flow for hopper days
+          // Don't blindly sort all items by time - this destroys the intentional park flow
+          const transitionIdx = items.findIndex(item =>
+            item.type === 'break' && item.name?.includes('Travel to')
+          );
+
+          if (transitionIdx >= 0) {
+            // Sort within each park segment only, preserving the transition position
+            const park1Items = items.slice(0, transitionIdx);
+            const transition = items[transitionIdx];
+            const park2Items = items.slice(transitionIdx + 1);
+
+            park1Items.sort((a, b) => parseTimeToMinutes(a.time) - parseTimeToMinutes(b.time));
+            park2Items.sort((a, b) => parseTimeToMinutes(a.time) - parseTimeToMinutes(b.time));
+
+            items.length = 0;
+            items.push(...park1Items, transition, ...park2Items);
+          } else {
+            // No transition found, fall back to regular sort
+            items.sort((a, b) => parseTimeToMinutes(a.time) - parseTimeToMinutes(b.time));
+          }
         }
 
         // =============================================
@@ -4519,8 +4727,25 @@ export default function PlanWizard() {
             });
           }
 
-          // Re-sort after adding activities
-          items.sort((a, b) => parseTimeToMinutes(a.time) - parseTimeToMinutes(b.time));
+          // Re-sort after adding activities - preserve park segments for hopper days
+          if (dayIsHopper) {
+            const transitionIdx = items.findIndex(item =>
+              item.type === 'break' && item.name?.includes('Travel to')
+            );
+            if (transitionIdx >= 0) {
+              const park1Items = items.slice(0, transitionIdx);
+              const transition = items[transitionIdx];
+              const park2Items = items.slice(transitionIdx + 1);
+              park1Items.sort((a, b) => parseTimeToMinutes(a.time) - parseTimeToMinutes(b.time));
+              park2Items.sort((a, b) => parseTimeToMinutes(a.time) - parseTimeToMinutes(b.time));
+              items.length = 0;
+              items.push(...park1Items, transition, ...park2Items);
+            } else {
+              items.sort((a, b) => parseTimeToMinutes(a.time) - parseTimeToMinutes(b.time));
+            }
+          } else {
+            items.sort((a, b) => parseTimeToMinutes(a.time) - parseTimeToMinutes(b.time));
+          }
         }
 
         // ============================================================
@@ -4648,8 +4873,25 @@ export default function PlanWizard() {
           }
         }
 
-        // Re-sort after adding entertainment
-        items.sort((a, b) => parseTimeToMinutes(a.time) - parseTimeToMinutes(b.time));
+        // Re-sort after adding entertainment - preserve park segments for hopper days
+        if (dayIsHopper) {
+          const transitionIdx = items.findIndex(item =>
+            item.type === 'break' && item.name?.includes('Travel to')
+          );
+          if (transitionIdx >= 0) {
+            const park1Items = items.slice(0, transitionIdx);
+            const transition = items[transitionIdx];
+            const park2Items = items.slice(transitionIdx + 1);
+            park1Items.sort((a, b) => parseTimeToMinutes(a.time) - parseTimeToMinutes(b.time));
+            park2Items.sort((a, b) => parseTimeToMinutes(a.time) - parseTimeToMinutes(b.time));
+            items.length = 0;
+            items.push(...park1Items, transition, ...park2Items);
+          } else {
+            items.sort((a, b) => parseTimeToMinutes(a.time) - parseTimeToMinutes(b.time));
+          }
+        } else {
+          items.sort((a, b) => parseTimeToMinutes(a.time) - parseTimeToMinutes(b.time));
+        }
 
         // Recalculate gap after all additions
         const finalLastItem = items[items.length - 1];
@@ -4969,6 +5211,17 @@ export default function PlanWizard() {
     else if (step === 'dates') {
       // If park hopper with multiple days, show day configuration step
       if (isParkHopper && selectedDates.length > 1) {
+        // Initialize per-day hopper settings before navigating to day-config
+        // This ensures validation passes immediately
+        const otherParks = selectedPark ? getOtherParksInResort(selectedPark) : [];
+        const defaultSecondPark = otherParks.length > 0 ? otherParks[0].id : undefined;
+        setSelectedDates(prev => prev.map(sd => ({
+          ...sd,
+          isHopperDay: sd.isHopperDay ?? true,
+          startingParkId: sd.startingParkId ?? selectedPark ?? undefined,
+          secondParkId: sd.secondParkId ?? defaultSecondPark,
+          transitionTime: sd.transitionTime ?? '2:00 PM',
+        })));
         setStep('day-config');
       } else {
         // Move to entertainment step
@@ -5125,6 +5378,15 @@ export default function PlanWizard() {
               } else {
                 setSecondParkId(null);
                 setSecondParkRides([]);
+                // Clear per-day park hopper settings from selectedDates
+                // This ensures the schedule generator doesn't use stale hopper config
+                setSelectedDates(prev => prev.map(sd => ({
+                  ...sd,
+                  isHopperDay: undefined,
+                  startingParkId: undefined,
+                  secondParkId: undefined,
+                  transitionTime: undefined,
+                })));
               }
             }}
             onSecondParkChange={setSecondParkId}

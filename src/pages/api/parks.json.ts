@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
-import { fetchParkSchedule, PARK_TIMEZONES, type ParkHours } from '../../lib/api/parkHours';
+import { getParkHours, getDefaultParkHours, PARK_TIMEZONES, type ParkHours } from '../../lib/api/parkHours';
+import { isParkCurrentlyOpen } from '../../lib/utils/parkStatus';
 
 const QUEUE_TIMES_BASE_URL = 'https://queue-times.com';
 
@@ -55,59 +56,6 @@ interface ParkWithStats {
     openingTime: string;
     closingTime: string;
   } | null;
-}
-
-/**
- * Check if a park is currently open based on its operating hours and ride status
- */
-function isParkCurrentlyOpen(
-  hours: ParkHours | null,
-  parkTimezone: string,
-  ridesOpen: number
-): boolean {
-  // If no rides are open, the park is effectively closed
-  // (handles cases where hours data is missing or park closed early)
-  if (ridesOpen === 0) {
-    return false;
-  }
-
-  if (!hours) {
-    // No hours data available but rides are open, assume park is open
-    return true;
-  }
-
-  const timezone = hours.timezone || parkTimezone || 'America/New_York';
-
-  // Get current time in the park's timezone using Intl.DateTimeFormat
-  // This correctly handles timezone conversion without locale parsing issues
-  const now = new Date();
-  const formatter = new Intl.DateTimeFormat('en-US', {
-    timeZone: timezone,
-    hour: 'numeric',
-    minute: 'numeric',
-    hour12: false,
-  });
-  const parts = formatter.formatToParts(now);
-  const currentHour = parseInt(parts.find(p => p.type === 'hour')?.value || '0', 10);
-  const currentMinute = parseInt(parts.find(p => p.type === 'minute')?.value || '0', 10);
-  const currentTimeMinutes = currentHour * 60 + currentMinute;
-
-  // Convert park hours to minutes for comparison
-  const openTimeMinutes = hours.openHour * 60 + hours.openMinute;
-  let closeTimeMinutes = hours.closeHour * 60 + hours.closeMinute;
-
-  // Handle closing times past midnight (e.g., 1 AM = 25:00)
-  if (closeTimeMinutes < openTimeMinutes) {
-    closeTimeMinutes += 24 * 60;
-  }
-
-  // Adjust current time if we're past midnight but before close
-  let adjustedCurrentTime = currentTimeMinutes;
-  if (currentTimeMinutes < openTimeMinutes && closeTimeMinutes > 24 * 60) {
-    adjustedCurrentTime += 24 * 60;
-  }
-
-  return adjustedCurrentTime >= openTimeMinutes && adjustedCurrentTime < closeTimeMinutes;
 }
 
 interface QueueTimesRide {
@@ -240,13 +188,14 @@ export const GET: APIRoute = async () => {
     const parksWithStats: ParkWithStats[] = await Promise.all(
       allParks.slice(0, 12).map(async (park) => {
         // Fetch wait times and park hours in parallel
+        // getParkHours() includes fallback to default hours if API fails
         const [stats, parkHours] = await Promise.all([
           fetchParkWaitTimes(park.id),
-          fetchParkSchedule(park.id).catch(() => null),
+          getParkHours(park.id).catch(() => getDefaultParkHours(park.id)),
         ]);
 
         const parkTimezone = PARK_TIMEZONES[park.id] || park.timezone || 'America/New_York';
-        const isOpen = isParkCurrentlyOpen(parkHours, parkTimezone, stats.ridesOpen);
+        const isOpen = isParkCurrentlyOpen(parkHours, park.id, stats.ridesOpen);
 
         return {
           id: park.id,
