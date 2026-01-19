@@ -16,6 +16,7 @@ import {
   Compass,
 } from 'lucide-react';
 import { supportsParkHopper } from '../../lib/analytics/data/resortPairings';
+import { getParkStatus } from '../../lib/utils/parkStatus';
 import {
   LineChart,
   Line,
@@ -175,80 +176,6 @@ function formatShowTime(isoString: string): string {
   return isoString;
 }
 
-// Default timezone mapping for when hours API doesn't return timezone
-const PARK_TIMEZONES: Record<number, string> = {
-  // Walt Disney World (Orlando) - Eastern
-  5: 'America/New_York',
-  6: 'America/New_York',
-  7: 'America/New_York',
-  8: 'America/New_York',
-  // Universal Orlando - Eastern
-  64: 'America/New_York',
-  65: 'America/New_York',
-  334: 'America/New_York',
-  // Disneyland Resort (Anaheim) - Pacific
-  16: 'America/Los_Angeles',
-  17: 'America/Los_Angeles',
-  // Universal Hollywood - Pacific
-  66: 'America/Los_Angeles',
-};
-
-/**
- * Check if park is currently closed based on hours and timezone
- */
-function isParkClosed(
-  hours: ParkHours | null,
-  parkId: number,
-  ridesOpen: number
-): { closed: boolean; currentTime: string; opensAt: string; timezone: string } {
-  const timezone = hours?.timezone || PARK_TIMEZONES[parkId] || 'America/New_York';
-
-  // Get current time in park's timezone
-  const now = new Date();
-  const parkTime = new Date(now.toLocaleString('en-US', { timeZone: timezone }));
-  const currentHour = parkTime.getHours();
-  const currentMinute = parkTime.getMinutes();
-
-  // Format current time for display
-  const formatTime = (h: number, m: number) => {
-    const hour = h > 12 ? h - 12 : h === 0 ? 12 : h;
-    const period = h >= 12 ? 'PM' : 'AM';
-    return `${hour}:${m.toString().padStart(2, '0')} ${period}`;
-  };
-
-  const currentTimeFormatted = formatTime(currentHour, currentMinute);
-
-  // If we have hours data, use that to determine if closed
-  if (hours) {
-    const currentTimeMinutes = currentHour * 60 + currentMinute;
-    const openTimeMinutes = hours.openHour * 60 + hours.openMinute;
-    // Handle closing times past midnight (e.g., 1am = 25:00)
-    const closeTimeMinutes = hours.closeHour < hours.openHour
-      ? (hours.closeHour + 24) * 60 + hours.closeMinute
-      : hours.closeHour * 60 + hours.closeMinute;
-
-    const isClosed = currentTimeMinutes < openTimeMinutes || currentTimeMinutes >= closeTimeMinutes;
-
-    return {
-      closed: isClosed,
-      currentTime: currentTimeFormatted,
-      opensAt: hours.openingTimeFormatted,
-      timezone,
-    };
-  }
-
-  // Fallback: if no hours data but zero rides are open, assume park is closed
-  if (ridesOpen === 0) {
-    return {
-      closed: true,
-      currentTime: currentTimeFormatted,
-      opensAt: '9:00 AM', // Default opening time
-      timezone,
-    };
-  }
-
-  return { closed: false, currentTime: '', opensAt: '', timezone };
-}
 
 /**
  * Generate mock historical data based on current ride wait times
@@ -1162,7 +1089,7 @@ export default function ParkDetailPage({
   }
 
   const crowdLevel = getCrowdLevel(data.stats.avgWaitTime);
-  const parkClosedStatus = isParkClosed(hours, Number(parkId), data.stats.ridesOpen);
+  const parkStatus = getParkStatus(hours, Number(parkId), data.stats.ridesOpen);
 
   return (
     <div className="pd-container">
@@ -1173,11 +1100,11 @@ export default function ParkDetailPage({
       />
 
       <div className="pd-content">
-        {parkClosedStatus.closed && (
+        {parkStatus.isClosed && (
           <ParkClosedBanner
-            currentTime={parkClosedStatus.currentTime}
-            opensAt={parkClosedStatus.opensAt}
-            timezone={parkClosedStatus.timezone}
+            currentTime={parkStatus.currentTime}
+            opensAt={parkStatus.opensAt}
+            timezone={parkStatus.timezone}
           />
         )}
 
