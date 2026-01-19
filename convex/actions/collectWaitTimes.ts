@@ -217,8 +217,13 @@ async function collectWaitTimesOnly(
         const { lands, rides: standaloneRides } = await fetchParkWaitTimes(parkExternalId);
 
         // Process rides from lands
+        // Skip "Single Rider" entries - these are queue options, not separate rides
         for (const land of lands) {
-          for (const ride of land.rides) {
+          const filteredRides = land.rides.filter(
+            (ride) => !ride.name.toLowerCase().includes('single rider')
+          );
+
+          for (const ride of filteredRides) {
             const rideExternalId = String(ride.id);
             const rideMapping = mappings.ridesByExternalId[rideExternalId];
 
@@ -240,8 +245,12 @@ async function collectWaitTimesOnly(
           }
         }
 
-        // Process standalone rides
-        for (const ride of standaloneRides) {
+        // Process standalone rides (also skip Single Rider)
+        const filteredStandaloneRides = standaloneRides.filter(
+          (ride) => !ride.name.toLowerCase().includes('single rider')
+        );
+
+        for (const ride of filteredStandaloneRides) {
           const rideExternalId = String(ride.id);
           const rideMapping = mappings.ridesByExternalId[rideExternalId];
 
@@ -327,6 +336,7 @@ export const syncParksAndRides = internalAction({
           const { lands, rides: standaloneRides } = await fetchParkWaitTimes(parkExternalId);
 
           // Process lands and their rides
+          // Filter out "Single Rider" entries - these are queue options, not separate rides
           for (const land of lands) {
             const landExternalId = String(land.id);
 
@@ -338,7 +348,11 @@ export const syncParksAndRides = internalAction({
             });
             landsProcessed++;
 
-            for (const ride of land.rides) {
+            const filteredRides = land.rides.filter(
+              (ride) => !ride.name.toLowerCase().includes('single rider')
+            );
+
+            for (const ride of filteredRides) {
               await ctx.runMutation(internal.mutations.rides.upsertRide, {
                 externalId: String(ride.id),
                 parkId: parkId,
@@ -351,8 +365,12 @@ export const syncParksAndRides = internalAction({
             }
           }
 
-          // Process standalone rides
-          for (const ride of standaloneRides) {
+          // Process standalone rides (also filter out Single Rider)
+          const filteredStandaloneRides = standaloneRides.filter(
+            (ride) => !ride.name.toLowerCase().includes('single rider')
+          );
+
+          for (const ride of filteredStandaloneRides) {
             await ctx.runMutation(internal.mutations.rides.upsertRide, {
               externalId: String(ride.id),
               parkId: parkId,

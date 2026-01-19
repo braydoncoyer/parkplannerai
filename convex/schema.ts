@@ -41,7 +41,8 @@ export default defineSchema({
     .index("by_park", ["parkId"])
     .index("by_land", ["landId"]),
 
-  // Historical wait times (collected every 15 min)
+  // DEPRECATED: Historical wait times (collected every 15 min)
+  // Use liveWaitTimes for recent data and hourlyRideWaits for historical
   waitTimeSnapshots: defineTable({
     rideId: v.id("rides"),
     parkId: v.id("parks"),
@@ -56,6 +57,44 @@ export default defineSchema({
     .index("by_park_time", ["parkId", "timestamp"])
     .index("by_land_time", ["landId", "timestamp"])
     .index("by_timestamp", ["timestamp"]),
+
+  // Rolling window of recent wait times (24-48 hours)
+  // 15-minute granularity, auto-purged after 48 hours
+  // Used by: live dashboard, real-time predictions
+  liveWaitTimes: defineTable({
+    rideId: v.id("rides"),
+    parkId: v.id("parks"),
+    landId: v.optional(v.id("lands")),
+    externalRideId: v.string(),
+    externalParkId: v.string(),
+    waitTimeMinutes: v.optional(v.number()),
+    isOpen: v.boolean(),
+    timestamp: v.number(),
+  })
+    .index("by_ride_time", ["rideId", "timestamp"])
+    .index("by_park_time", ["parkId", "timestamp"])
+    .index("by_timestamp", ["timestamp"]),
+
+  // Permanent hourly aggregates for historical analysis
+  // Used by: predictions, analytics, YoY comparison
+  hourlyRideWaits: defineTable({
+    rideId: v.id("rides"),
+    parkId: v.id("parks"),
+    landId: v.optional(v.id("lands")),
+    date: v.string(), // "YYYY-MM-DD" (local park time)
+    dayOfWeek: v.number(), // 0-6 (0=Sunday)
+    hour: v.number(), // 0-23 (local park time)
+    avgWaitMinutes: v.number(),
+    maxWaitMinutes: v.number(),
+    minWaitMinutes: v.number(),
+    sampleCount: v.number(), // Typically 4 (15-min intervals)
+    openPercent: v.number(), // 0-100, % of time ride was open
+  })
+    .index("by_ride_date", ["rideId", "date"])
+    .index("by_ride_date_hour", ["rideId", "date", "hour"])
+    .index("by_park_date", ["parkId", "date"])
+    .index("by_ride_dayofweek", ["rideId", "dayOfWeek"])
+    .index("by_park_dayofweek", ["parkId", "dayOfWeek"]),
 
   // Pre-computed daily statistics
   dailyAggregates: defineTable({

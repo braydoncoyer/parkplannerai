@@ -486,3 +486,341 @@
   border-color: var(--color-primary);
   box-shadow: 0 0 0 2px rgba(194, 65, 12, 0.1);
 }
+
+/* Live Park Busyness Table */
+.busyness-section {
+  margin-bottom: 32px;
+}
+
+.busyness-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+
+.busyness-header h2 {
+  font-family: 'Fraunces', Georgia, serif;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin: 0;
+}
+
+.busyness-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 200px;
+  color: var(--color-text-tertiary);
+  font-size: 14px;
+}
+
+.busyness-table-wrapper {
+  margin-top: 16px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.busyness-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 13px;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.busyness-table thead {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.busyness-table th {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--color-text-tertiary);
+  background: var(--color-elevated);
+  padding: 12px 16px;
+  text-align: left;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--color-border);
+  user-select: none;
+}
+
+.busyness-table th.sortable {
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.busyness-table th.sortable:hover {
+  background: var(--color-border-light);
+  color: var(--color-text-primary);
+}
+
+.busyness-table th:first-child {
+  border-radius: 8px 0 0 0;
+}
+
+.busyness-table th:last-child {
+  border-radius: 0 8px 0 0;
+}
+
+/* Sort Indicators */
+.sort-indicator {
+  margin-left: 4px;
+  font-size: 10px;
+}
+
+.sort-indicator.inactive {
+  opacity: 0.3;
+}
+
+.sort-indicator.active {
+  color: var(--color-primary);
+  opacity: 1;
+}
+
+.busyness-table .th-park {
+  width: 35%;
+  min-width: 160px;
+}
+
+.busyness-table .th-operator {
+  width: 15%;
+  min-width: 90px;
+}
+
+.busyness-table .th-wait {
+  width: 15%;
+  min-width: 80px;
+  text-align: right;
+}
+
+.busyness-table .th-rides {
+  width: 15%;
+  min-width: 90px;
+  text-align: center;
+}
+
+.busyness-table .th-status {
+  width: 20%;
+  min-width: 110px;
+}
+
+.busyness-table td {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--color-border-light);
+  vertical-align: middle;
+  transition: background-color 0.15s ease;
+}
+
+.busyness-table tbody tr:hover td {
+  background-color: var(--color-primary-light);
+}
+
+.busyness-table tbody tr.park-closed td {
+  opacity: 0.6;
+}
+
+.busyness-table tbody tr.park-closed:hover td {
+  background-color: var(--color-elevated);
+}
+
+/* Park Name */
+.park-name {
+  font-weight: 500;
+  color: var(--color-text-primary);
+  line-height: 1.3;
+}
+
+/* Operator Badge */
+.operator-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+
+.operator-badge.disney {
+  background: #eff6ff;
+  color: #2563eb;
+}
+
+.operator-badge.universal {
+  background: #f0fdf4;
+  color: #16a34a;
+}
+
+/* Wait Time Column */
+.td-wait {
+  text-align: right;
+}
+
+.wait-value {
+  font-family: 'Fraunces', Georgia, serif;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.wait-unit {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--color-text-tertiary);
+  margin-left: 2px;
+}
+
+.wait-closed {
+  font-size: 14px;
+  color: var(--color-text-tertiary);
+}
+
+/* Rides Open Column */
+.td-rides {
+  text-align: center;
+}
+
+.rides-fraction {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 2px;
+}
+
+.rides-open {
+  font-family: 'Fraunces', Georgia, serif;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--color-success);
+}
+
+.rides-divider {
+  font-size: 12px;
+  color: var(--color-text-tertiary);
+  margin: 0 1px;
+}
+
+.rides-total {
+  font-size: 12px;
+  color: var(--color-text-tertiary);
+}
+
+.rides-closed {
+  font-size: 14px;
+  color: var(--color-text-tertiary);
+}
+
+/* Status Indicator */
+.status-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 20px;
+  background: color-mix(in srgb, var(--status-color) 12%, transparent);
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--status-color);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--status-color) 25%, transparent);
+  animation: pulse-status 2s ease-in-out infinite;
+}
+
+@keyframes pulse-status {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.1);
+    opacity: 0.8;
+  }
+}
+
+.status-indicator.closed .status-dot {
+  animation: none;
+}
+
+.status-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--status-color);
+}
+
+/* Status Level Colors */
+.status-indicator.low {
+  --status-color: #65a30d;
+}
+
+.status-indicator.moderate {
+  --status-color: #d97706;
+}
+
+.status-indicator.busy {
+  --status-color: #ea580c;
+}
+
+.status-indicator.very-busy {
+  --status-color: #dc2626;
+}
+
+.status-indicator.closed {
+  --status-color: #94a3b8;
+  background: var(--color-elevated);
+}
+
+/* Mobile Responsiveness for Busyness Table */
+@media (max-width: 768px) {
+  .busyness-table th,
+  .busyness-table td {
+    padding: 10px 12px;
+  }
+
+  .busyness-table .th-operator,
+  .busyness-table .td-operator {
+    display: none;
+  }
+
+  .park-name {
+    font-size: 13px;
+  }
+
+  .wait-value {
+    font-size: 16px;
+  }
+
+  .rides-open {
+    font-size: 14px;
+  }
+
+  .status-indicator {
+    padding: 4px 8px;
+  }
+
+  .status-label {
+    font-size: 11px;
+  }
+}
+
+@media (max-width: 500px) {
+  .busyness-table .th-rides,
+  .busyness-table .td-rides {
+    display: none;
+  }
+
+  .status-indicator {
+    padding: 4px 6px;
+    gap: 4px;
+  }
+}

@@ -56,13 +56,18 @@ export const GET: APIRoute = async ({ params }) => {
     const data: QueueTimesResponse = await response.json();
 
     // Process rides by land
+    // Filter out "Single Rider" entries - these are queue options, not separate rides
     const allRides: RideWithLand[] = [];
     const lands: { name: string; rideCount: number }[] = [];
 
     for (const land of data.lands || []) {
-      lands.push({ name: land.name, rideCount: land.rides.length });
+      const filteredRides = (land.rides || []).filter(
+        (ride) => !ride.name.toLowerCase().includes('single rider')
+      );
 
-      for (const ride of land.rides || []) {
+      lands.push({ name: land.name, rideCount: filteredRides.length });
+
+      for (const ride of filteredRides) {
         allRides.push({
           id: ride.id,
           name: ride.name,
