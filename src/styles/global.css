@@ -203,9 +203,9 @@ li {
 .skeleton {
   background: linear-gradient(
     90deg,
-    var(--color-background-secondary) 25%,
-    var(--color-background-tertiary) 50%,
-    var(--color-background-secondary) 75%
+    var(--theme-skeleton-base) 25%,
+    var(--theme-skeleton-shine) 50%,
+    var(--theme-skeleton-base) 75%
   );
   background-size: 200% 100%;
   animation: skeleton-loading 1.5s ease-in-out infinite;
@@ -223,7 +223,7 @@ li {
 
 /* Focus Visible */
 :focus-visible {
-  outline: 2px solid var(--color-border-focus);
+  outline: 2px solid var(--theme-border-focus);
   outline-offset: 2px;
 }
 
@@ -234,16 +234,22 @@ li {
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--color-background-secondary);
+  background: var(--theme-scrollbar-track);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--color-border);
+  background: var(--theme-scrollbar-thumb);
   border-radius: var(--radius-full);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--color-border-hover);
+  background: var(--theme-scrollbar-thumb-hover);
+}
+
+/* Selection */
+::selection {
+  background: var(--theme-primary);
+  color: var(--theme-text-inverted);
 }
 
 /* Print Styles */
