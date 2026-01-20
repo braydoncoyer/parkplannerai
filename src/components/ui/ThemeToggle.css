@@ -1,0 +1,111 @@
+/* Theme Toggle Component */
+
+/* Desktop: Segmented control */
+.theme-toggle-desktop {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  background: var(--theme-bg-elevated);
+  border: 1px solid var(--theme-border);
+  border-radius: 10px;
+}
+
+.theme-toggle-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--theme-text-muted);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.theme-toggle-btn:hover {
+  color: var(--theme-text-primary);
+  background: var(--theme-bg-card);
+}
+
+.theme-toggle-btn:focus {
+  outline: none;
+}
+
+.theme-toggle-btn:focus-visible {
+  outline: 2px solid var(--theme-border-focus);
+  outline-offset: 2px;
+}
+
+.theme-toggle-btn.active {
+  color: var(--theme-primary);
+  background: var(--theme-bg-card);
+  box-shadow: var(--theme-shadow-sm);
+}
+
+.theme-toggle-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.theme-toggle-btn svg {
+  flex-shrink: 0;
+}
+
+/* Mobile: Single cycling button */
+.theme-toggle-mobile {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid var(--theme-border);
+  border-radius: 8px;
+  background: var(--theme-bg-elevated);
+  color: var(--theme-text-secondary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.theme-toggle-mobile:hover {
+  color: var(--theme-text-primary);
+  background: var(--theme-bg-card);
+  border-color: var(--theme-border-hover);
+}
+
+.theme-toggle-mobile:focus {
+  outline: none;
+}
+
+.theme-toggle-mobile:focus-visible {
+  outline: 2px solid var(--theme-border-focus);
+  outline-offset: 2px;
+}
+
+.theme-toggle-mobile:active {
+  transform: scale(0.95);
+}
+
+.theme-toggle-mobile:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.theme-toggle-mobile svg {
+  flex-shrink: 0;
+}
+
+/* Responsive: Show mobile button, hide desktop toggle */
+@media (max-width: 640px) {
+  .theme-toggle-desktop {
+    display: none;
+  }
+
+  .theme-toggle-mobile {
+    display: flex;
+  }
+}

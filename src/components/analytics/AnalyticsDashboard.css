@@ -2,21 +2,22 @@
 @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=DM+Sans:wght@400;500;600;700&display=swap');
 
 .analytics-dashboard {
-  --color-bg: #fdfbf7;
-  --color-surface: #ffffff;
-  --color-elevated: #f8f6f1;
-  --color-border: #e2e0db;
-  --color-border-light: #f0eee9;
-  --color-text-primary: #1e293b;
-  --color-text-secondary: #64748b;
-  --color-text-tertiary: #94a3b8;
-  --color-primary: #c2410c;
-  --color-primary-light: #fff7ed;
-  --color-primary-hover: #9a3412;
-  --color-success: #65a30d;
-  --color-success-light: #f7fee7;
-  --color-warning: #d97706;
-  --color-warning-light: #fffbeb;
+  /* Reference theme tokens for dark mode support */
+  --color-bg: var(--theme-bg-page);
+  --color-surface: var(--theme-bg-card);
+  --color-elevated: var(--theme-bg-elevated);
+  --color-border: var(--theme-border);
+  --color-border-light: var(--theme-border-light);
+  --color-text-primary: var(--theme-text-primary);
+  --color-text-secondary: var(--theme-text-secondary);
+  --color-text-tertiary: var(--theme-text-muted);
+  --color-primary: var(--theme-primary);
+  --color-primary-light: var(--theme-primary-light);
+  --color-primary-hover: var(--theme-primary-hover);
+  --color-success: var(--theme-success);
+  --color-success-light: var(--theme-success-light);
+  --color-warning: var(--theme-warning);
+  --color-warning-light: var(--theme-warning-light);
 
   font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
   max-width: 1200px;
@@ -107,7 +108,7 @@
 }
 
 .insights-section.historical-insights h2 {
-  color: #3f6212;
+  color: var(--color-success);
 }
 
 .insights-section.historical-insights .insight-card {
@@ -443,8 +444,8 @@
 }
 
 .hours-badge.extended {
-  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
-  color: #92400e;
+  background: var(--theme-warning-light);
+  color: var(--theme-warning);
 }
 
 /* Chart Header Row */
@@ -650,13 +651,13 @@
 }
 
 .operator-badge.disney {
-  background: #eff6ff;
-  color: #2563eb;
+  background: var(--theme-info-light);
+  color: var(--theme-info);
 }
 
 .operator-badge.universal {
-  background: #f0fdf4;
-  color: #16a34a;
+  background: var(--theme-success-light);
+  color: var(--theme-success);
 }
 
 /* Wait Time Column */

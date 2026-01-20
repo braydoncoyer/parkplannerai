@@ -2,25 +2,26 @@
 @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=DM+Sans:wght@400;500;600;700&display=swap');
 
 .landing-page {
-  --text-primary: #1e293b;
-  --text-secondary: #64748b;
-  --text-muted: #94a3b8;
-  --bg-page: #fdfbf7;
-  --bg-card: #ffffff;
-  --bg-elevated: #f8f6f1;
-  --bg-dark: #292524;
-  --border: #e2e0db;
-  --border-light: #f0eee9;
-  --primary: #c2410c;
-  --primary-light: #fff7ed;
-  --primary-hover: #9a3412;
-  --accent-warm: #ea580c;
-  --accent-amber: #d97706;
-  --green: #65a30d;
-  --green-light: #f7fee7;
-  --yellow: #eab308;
-  --orange: #f97316;
-  --red: #dc2626;
+  /* Reference theme tokens for dark mode support */
+  --text-primary: var(--theme-text-primary);
+  --text-secondary: var(--theme-text-secondary);
+  --text-muted: var(--theme-text-muted);
+  --bg-page: var(--theme-bg-page);
+  --bg-card: var(--theme-bg-card);
+  --bg-elevated: var(--theme-bg-elevated);
+  --bg-dark: var(--theme-bg-dark);
+  --border: var(--theme-border);
+  --border-light: var(--theme-border-light);
+  --primary: var(--theme-primary);
+  --primary-light: var(--theme-primary-light);
+  --primary-hover: var(--theme-primary-hover);
+  --accent-warm: var(--theme-primary-accent);
+  --accent-amber: var(--theme-warning);
+  --green: var(--theme-success);
+  --green-light: var(--theme-success-light);
+  --yellow: var(--theme-warning);
+  --orange: var(--theme-wait-orange);
+  --red: var(--theme-danger);
 
   font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
   background: var(--bg-page);
@@ -164,14 +165,14 @@
 
 .hero-cta.primary {
   background: var(--primary);
-  color: #fff;
-  box-shadow: 0 4px 20px rgba(194, 65, 12, 0.25);
+  color: var(--theme-text-inverted);
+  box-shadow: var(--theme-shadow);
 }
 
 .hero-cta.primary:hover {
   background: var(--primary-hover);
   transform: translateY(-2px);
-  box-shadow: 0 8px 30px rgba(194, 65, 12, 0.35);
+  box-shadow: var(--theme-shadow-lg);
 }
 
 .hero-cta.secondary {
@@ -194,7 +195,7 @@
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: 16px;
-  box-shadow: 0 4px 24px rgba(30, 41, 59, 0.06);
+  box-shadow: var(--theme-shadow);
   animation: fadeInUp 0.7s ease-out;
   animation-delay: 0.4s;
   animation-fill-mode: both;
@@ -347,7 +348,7 @@
 
 .feature-card:hover {
   transform: translateY(-4px);
-  box-shadow: 0 20px 40px rgba(30, 41, 59, 0.08);
+  box-shadow: var(--theme-shadow-lg);
   border-color: var(--border);
 }
 
@@ -372,12 +373,12 @@
 }
 
 .feature-amber .feature-icon {
-  background: #fef3c7;
+  background: var(--theme-warning-light);
   color: var(--accent-amber);
 }
 
 .feature-rose .feature-icon {
-  background: #fef2f2;
+  background: var(--theme-danger-light);
   color: var(--red);
 }
 
@@ -679,7 +680,7 @@
 
 .park-card:hover {
   transform: translateY(-4px);
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.12);
+  box-shadow: var(--theme-shadow-lg);
 }
 
 .park-card-image {
@@ -751,7 +752,7 @@
 
 .crowd-badge.moderate {
   background: var(--yellow);
-  color: #1a1a1a;
+  color: var(--theme-text-inverted);
 }
 
 .crowd-badge.high {

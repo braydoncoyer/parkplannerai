@@ -9,38 +9,39 @@
    ============================================================================ */
 
 .pw-container {
-  --pw-bg: #fdfbf7;
-  --pw-bg-card: #ffffff;
-  --pw-bg-elevated: #f8f6f1;
-  --pw-text: #1e293b;
-  --pw-text-secondary: #64748b;
-  --pw-text-muted: #94a3b8;
-  --pw-border: #e2e0db;
-  --pw-border-light: #f0eee9;
+  /* Reference theme tokens for dark mode support */
+  --pw-bg: var(--theme-bg-page);
+  --pw-bg-card: var(--theme-bg-card);
+  --pw-bg-elevated: var(--theme-bg-elevated);
+  --pw-text: var(--theme-text-primary);
+  --pw-text-secondary: var(--theme-text-secondary);
+  --pw-text-muted: var(--theme-text-muted);
+  --pw-border: var(--theme-border);
+  --pw-border-light: var(--theme-border-light);
 
   /* Accent colors */
-  --pw-primary: #c2410c;
-  --pw-primary-light: #fff7ed;
-  --pw-primary-hover: #9a3412;
-  --pw-success: #65a30d;
-  --pw-success-light: #f7fee7;
-  --pw-accent: #7c3aed;
-  --pw-accent-light: #f5f3ff;
-  --pw-warning: #d97706;
-  --pw-warning-light: #fffbeb;
-  --pw-danger: #dc2626;
-  --pw-danger-light: #fef2f2;
+  --pw-primary: var(--theme-primary);
+  --pw-primary-light: var(--theme-primary-light);
+  --pw-primary-hover: var(--theme-primary-hover);
+  --pw-success: var(--theme-success);
+  --pw-success-light: var(--theme-success-light);
+  --pw-accent: var(--theme-info);
+  --pw-accent-light: var(--theme-info-light);
+  --pw-warning: var(--theme-warning);
+  --pw-warning-light: var(--theme-warning-light);
+  --pw-danger: var(--theme-danger);
+  --pw-danger-light: var(--theme-danger-light);
 
   /* Day type colors */
-  --pw-weekday: #22c55e;
-  --pw-weekend: #f59e0b;
-  --pw-holiday: #ef4444;
+  --pw-weekday: var(--theme-wait-green);
+  --pw-weekend: var(--theme-wait-amber);
+  --pw-holiday: var(--theme-danger);
 
   /* Shadows */
-  --pw-shadow-sm: 0 1px 2px rgba(30, 41, 59, 0.04);
-  --pw-shadow: 0 4px 12px rgba(30, 41, 59, 0.06);
-  --pw-shadow-lg: 0 12px 32px rgba(30, 41, 59, 0.08);
-  --pw-shadow-focus: 0 0 0 3px rgba(194, 65, 12, 0.15);
+  --pw-shadow-sm: var(--theme-shadow-sm);
+  --pw-shadow: var(--theme-shadow);
+  --pw-shadow-lg: var(--theme-shadow-lg);
+  --pw-shadow-focus: 0 0 0 3px var(--theme-primary-light);
 
   /* Typography */
   --pw-font-display: 'Fraunces', Georgia, serif;
@@ -5942,5 +5943,373 @@
   .pw-park-pill {
     flex: 1;
     min-width: 60px;
+  }
+}
+
+/* ============================================================================
+   DARK MODE OVERRIDES
+   ============================================================================ */
+
+[data-actual-theme="dark"] {
+  /* Strategy Summary Card - Dark warm amber */
+  .pw-strategy-summary {
+    background: linear-gradient(145deg, #431407 0%, #451a03 50%, #422006 100%);
+    border-color: rgba(234, 88, 12, 0.3);
+  }
+
+  .pw-strategy-summary::before {
+    background: radial-gradient(circle, rgba(234, 88, 12, 0.15) 0%, transparent 70%);
+  }
+
+  .pw-strategy-summary-header {
+    color: #fb923c;
+  }
+
+  .pw-strategy-summary-card {
+    background: rgba(41, 37, 36, 0.8);
+    border-color: rgba(234, 88, 12, 0.2);
+  }
+
+  .pw-strategy-summary-change {
+    border-color: rgba(234, 88, 12, 0.4);
+    color: #fb923c;
+  }
+
+  .pw-strategy-summary-change:hover {
+    background: rgba(234, 88, 12, 0.1);
+    border-color: rgba(234, 88, 12, 0.5);
+  }
+
+  /* Break Block - Dark sage */
+  .pw-break-block {
+    --break-sage: #6b8c71;
+    --break-sage-light: #1a2e1c;
+    --break-sage-dark: #4a6b50;
+    --break-cream: #1c1917;
+    --break-text: #a8a29e;
+    --break-text-muted: #78716c;
+  }
+
+  .pw-break-card {
+    background: linear-gradient(135deg, #1c1917 0%, #1a2e1c 100%);
+    border-color: #2d4a32;
+    border-left-color: #6b8c71;
+  }
+
+  .pw-break-card::before {
+    background-image:
+      radial-gradient(circle at 20% 80%, rgba(107, 140, 113, 0.1) 0%, transparent 50%),
+      radial-gradient(circle at 80% 20%, rgba(107, 140, 113, 0.08) 0%, transparent 40%);
+  }
+
+  .pw-break-suggestion {
+    background: #292524;
+    border-color: rgba(107, 140, 113, 0.25);
+  }
+
+  .pw-break-suggestion:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  }
+
+  .pw-break-dining .pw-suggestion-image-placeholder {
+    background: linear-gradient(135deg, #422006 0%, #451a03 50%, #431407 100%);
+  }
+
+  .pw-break-shopping .pw-suggestion-image-placeholder {
+    background: linear-gradient(135deg, #2e1065 0%, #3b0764 50%, #4a044e 100%);
+  }
+
+  .pw-break-dining .pw-suggestion-name {
+    color: #fb923c;
+  }
+
+  .pw-break-shopping .pw-suggestion-name {
+    color: #c084fc;
+  }
+
+  .pw-break-dining .pw-suggestion-category {
+    background: #431407;
+    color: #fb923c;
+  }
+
+  .pw-break-shopping .pw-suggestion-category {
+    background: #2e1065;
+    color: #c084fc;
+  }
+
+  .pw-break-reason {
+    background: rgba(107, 140, 113, 0.15);
+  }
+
+  /* Timeline Wait Badge */
+  .pw-timeline-wait {
+    background: linear-gradient(135deg, #431407 0%, #451a03 100%);
+    border-color: rgba(234, 88, 12, 0.3);
+  }
+
+  /* Dev Savings Indicator */
+  .pw-dev-savings {
+    color: #84cc16;
+    background: #1a2e05;
+  }
+
+  .pw-dev-no-savings {
+    color: #a8a29e;
+    background: #44403c;
+  }
+
+  /* Strategy Cards - solid dark warm gray */
+  .pw-strategy-card {
+    background: #292524;
+    border-color: #44403c;
+  }
+
+  .pw-strategy-card:hover {
+    border-color: #57534e;
+  }
+
+  .pw-strategy-card.selected {
+    background: #431407;
+    border-color: var(--pw-primary);
+  }
+
+  .pw-strategy-icon {
+    background: #1c1917;
+  }
+
+  /* Sidebar Stats Highlight */
+  .pw-sidebar-stat.highlight {
+    background: linear-gradient(135deg, #1a2e05 0%, #14532d 100%);
+  }
+
+  .pw-sidebar-improvement {
+    background: linear-gradient(135deg, #1a2e05 0%, #14532d 100%);
+  }
+
+  /* Sidebar Strategy Accent */
+  .pw-sidebar-strategy.accent {
+    background: linear-gradient(135deg, #422006 0%, #431407 100%);
+    border-color: #78350f;
+  }
+
+  /* Skipped Rides Section */
+  .pw-skipped-rides {
+    background: #422006;
+    border-color: #78350f;
+  }
+
+  .pw-skipped-rides-header {
+    color: #fb923c;
+  }
+
+  .pw-skipped-rides-header svg {
+    color: #f59e0b;
+  }
+
+  .pw-skipped-rides-desc {
+    color: #d4a574;
+  }
+
+  .pw-skipped-ride {
+    background: #292524;
+    border-color: #78350f;
+  }
+
+  .pw-skipped-ride-name {
+    color: #fafaf9;
+  }
+
+  .pw-skipped-ride-wait {
+    color: #a8a29e;
+  }
+
+  .pw-skipped-ride-wait svg {
+    color: #78716c;
+  }
+
+  .pw-skipped-ride-category.headliner {
+    background: #450a0a;
+    color: #f87171;
+  }
+
+  .pw-skipped-ride-category.popular {
+    background: #431407;
+    color: #fb923c;
+  }
+
+  .pw-skipped-ride-category.family {
+    background: #1e3a5f;
+    color: #60a5fa;
+  }
+
+  .pw-skipped-ride-category.standard {
+    background: #44403c;
+    color: #a8a29e;
+  }
+
+  .pw-skipped-rides-tip {
+    border-color: #78350f;
+    color: #fb923c;
+  }
+
+  .pw-skipped-rides-tip svg {
+    color: #f59e0b;
+  }
+
+  /* Prediction Notice */
+  .pw-prediction-notice {
+    background: linear-gradient(145deg, #422006 0%, #451a03 100%);
+    border-color: rgba(234, 88, 12, 0.25);
+  }
+
+  .pw-prediction-notice-icon {
+    background: #78350f;
+    color: #fbbf24;
+  }
+
+  .pw-prediction-notice-title {
+    color: #fbbf24;
+  }
+
+  .pw-prediction-notice-text {
+    color: #d4a574;
+  }
+
+  /* Headliner Block */
+  .pw-headliner-block {
+    --headliner-accent: #a78bfa;
+    --headliner-accent-light: #2e1065;
+    --headliner-accent-dark: #c4b5fd;
+  }
+
+  .pw-headliner-card {
+    border-color: #4c1d95;
+  }
+
+  /* Park Hours Indicators */
+  .pw-park-hours-indicator {
+    --park-open-color: #fbbf24;
+    --park-open-bg: #422006;
+    --park-close-color: #818cf8;
+    --park-close-bg: #1e1b4b;
+  }
+
+  .pw-park-open .pw-park-hours-content {
+    background: #422006;
+    border-color: #78350f;
+  }
+
+  .pw-park-open .pw-park-hours-label {
+    color: #fbbf24;
+  }
+
+  .pw-park-close .pw-park-hours-content {
+    background: #1e1b4b;
+    border-color: #4338ca;
+  }
+
+  .pw-park-close .pw-park-hours-label {
+    color: #a5b4fc;
+  }
+
+  /* Park Transition */
+  .pw-park-transition {
+    --transition-blue: #60a5fa;
+    --transition-blue-light: #1e3a5f;
+    --transition-blue-dark: #93c5fd;
+  }
+
+  .pw-park-transition .pw-timeline-content {
+    background: linear-gradient(135deg, #0c1929 0%, #1e3a5f 100%);
+    border-color: #3b82f6;
+  }
+
+  .pw-park-transition .pw-timeline-name {
+    color: #93c5fd;
+  }
+
+  .pw-park-transition .pw-timeline-notes {
+    color: #93c5fd;
+  }
+
+  /* Re-ride styling */
+  .pw-timeline-item.reride .pw-timeline-dot {
+    background: #78716c;
+    border-color: #44403c;
+  }
+
+  .pw-timeline-item.reride .pw-timeline-content::before {
+    background: linear-gradient(180deg, #57534e 0%, transparent 100%);
+  }
+
+  .pw-timeline-item.reride .pw-timeline-notes {
+    background: #292524;
+    border-color: #44403c;
+  }
+
+  .pw-reride-badge {
+    background: #44403c;
+    color: #a8a29e;
+    border-color: #57534e;
+  }
+
+  /* Suggestion/Free time styling */
+  .pw-timeline-item.suggestion .pw-timeline-notes {
+    background: #1a2e05;
+    color: #84cc16;
+  }
+
+  /* Entertainment Themes - Dark mode variants */
+  .pw-entertainment-fireworks .pw-timeline-time,
+  .pw-entertainment-nighttime .pw-timeline-time {
+    color: #fcd34d;
+  }
+
+  .pw-entertainment-block .pw-entertainment-card-fireworks,
+  .pw-entertainment-block .pw-entertainment-card-nighttime {
+    background: #422006;
+    border-color: rgba(245, 158, 11, 0.3);
+  }
+
+  .pw-entertainment-block .pw-entertainment-card-fireworks .pw-entertainment-name,
+  .pw-entertainment-block .pw-entertainment-card-fireworks .pw-entertainment-notes,
+  .pw-entertainment-block .pw-entertainment-card-nighttime .pw-entertainment-name,
+  .pw-entertainment-block .pw-entertainment-card-nighttime .pw-entertainment-notes {
+    color: #fcd34d;
+  }
+
+  .pw-entertainment-water-show .pw-timeline-time {
+    color: #67e8f9;
+  }
+
+  .pw-entertainment-block .pw-entertainment-card-water-show {
+    background: #083344;
+    border-color: rgba(8, 145, 178, 0.3);
+  }
+
+  .pw-entertainment-block .pw-entertainment-card-water-show .pw-entertainment-name,
+  .pw-entertainment-block .pw-entertainment-card-water-show .pw-entertainment-notes {
+    color: #67e8f9;
+  }
+
+  .pw-entertainment-parade .pw-timeline-time {
+    color: #d8b4fe;
+  }
+
+  .pw-entertainment-block .pw-entertainment-card-parade {
+    background: #2e1065;
+    border-color: rgba(147, 51, 234, 0.3);
+  }
+
+  .pw-entertainment-block .pw-entertainment-card-parade .pw-entertainment-name,
+  .pw-entertainment-block .pw-entertainment-card-parade .pw-entertainment-notes {
+    color: #d8b4fe;
+  }
+
+  /* Break/Meal styling for old fallback */
+  .pw-timeline-item.break .pw-timeline-notes,
+  .pw-timeline-item.meal .pw-timeline-notes {
+    background: #422006;
+    color: #fbbf24;
   }
 }

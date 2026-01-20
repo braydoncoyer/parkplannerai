@@ -1,4 +1,6 @@
 ---
+import ThemeToggle from '../ui/ThemeToggle.tsx';
+
 const pathname = Astro.url.pathname;
 
 const navItems = [
@@ -36,6 +38,7 @@ function isActive(href: string, pathname: string): boolean {
     </nav>
 
     <div class="header-actions">
+      <ThemeToggle client:load />
       <a href="/plan" class="cta-button">
         Create Plan
       </a>
@@ -47,8 +50,8 @@ function isActive(href: string, pathname: string): boolean {
   @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=DM+Sans:wght@400;500;600;700&display=swap');
 
   .header {
-    background: #fdfbf7;
-    border-bottom: 1px solid #e2e0db;
+    background: var(--theme-bg-page);
+    border-bottom: 1px solid var(--theme-border);
     position: sticky;
     top: 0;
     z-index: 100;
@@ -70,7 +73,7 @@ function isActive(href: string, pathname: string): boolean {
     align-items: center;
     gap: 10px;
     text-decoration: none;
-    color: #1e293b;
+    color: var(--theme-text-primary);
   }
 
   .logo-icon {
@@ -94,7 +97,7 @@ function isActive(href: string, pathname: string): boolean {
     font-family: 'DM Sans', sans-serif;
     font-size: 14px;
     font-weight: 500;
-    color: #64748b;
+    color: var(--theme-text-secondary);
     text-decoration: none;
     padding: 8px 16px;
     border-radius: 8px;
@@ -102,13 +105,13 @@ function isActive(href: string, pathname: string): boolean {
   }
 
   .nav-link:hover {
-    color: #1e293b;
-    background: #f8f6f1;
+    color: var(--theme-text-primary);
+    background: var(--theme-bg-elevated);
   }
 
   .nav-link.active {
-    color: #c2410c;
-    background: #fff7ed;
+    color: var(--theme-primary);
+    background: var(--theme-primary-light);
   }
 
   .header-actions {
@@ -121,8 +124,8 @@ function isActive(href: string, pathname: string): boolean {
     font-family: 'DM Sans', sans-serif;
     font-size: 14px;
     font-weight: 600;
-    color: white;
-    background: #c2410c;
+    color: var(--theme-text-inverted);
+    background: var(--theme-primary);
     padding: 10px 20px;
     border-radius: 8px;
     text-decoration: none;
@@ -130,7 +133,7 @@ function isActive(href: string, pathname: string): boolean {
   }
 
   .cta-button:hover {
-    background: #9a3412;
+    background: var(--theme-primary-hover);
   }
 
   /* Mobile Responsive */

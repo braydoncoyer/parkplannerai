@@ -28,7 +28,7 @@ import AnalyticsDashboardWithProvider from '../../components/analytics/Analytics
   @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=DM+Sans:wght@400;500;600;700&display=swap');
 
   .analytics-page {
-    background-color: #fdfbf7;
+    background-color: var(--theme-bg-page);
     min-height: calc(100vh - 64px);
   }
 
@@ -40,8 +40,8 @@ import AnalyticsDashboardWithProvider from '../../components/analytics/Analytics
 
   .page-header {
     padding: 40px 0 32px;
-    border-bottom: 1px solid #e2e0db;
-    background: linear-gradient(180deg, #fdfbf7 0%, #f8f6f1 100%);
+    border-bottom: 1px solid var(--theme-border);
+    background: linear-gradient(180deg, var(--theme-bg-page) 0%, var(--theme-bg-elevated) 100%);
     margin-bottom: 24px;
   }
 
@@ -49,7 +49,7 @@ import AnalyticsDashboardWithProvider from '../../components/analytics/Analytics
     font-family: 'Fraunces', Georgia, serif;
     font-size: 32px;
     font-weight: 600;
-    color: #1e293b;
+    color: var(--theme-text-primary);
     margin: 0 0 8px 0;
     letter-spacing: -0.5px;
   }
@@ -57,7 +57,7 @@ import AnalyticsDashboardWithProvider from '../../components/analytics/Analytics
   .subtitle {
     font-family: 'DM Sans', sans-serif;
     font-size: 15px;
-    color: #64748b;
+    color: var(--theme-text-secondary);
     margin: 0;
   }
 
@@ -78,25 +78,25 @@ import AnalyticsDashboardWithProvider from '../../components/analytics/Analytics
     gap: 8px;
     text-align: center;
     padding: 32px 24px;
-    background: #ffffff;
-    border-top: 1px solid #e2e0db;
+    background: var(--theme-bg-card);
+    border-top: 1px solid var(--theme-border);
   }
 
   .page-footer p {
     font-family: 'DM Sans', sans-serif;
     font-size: 13px;
-    color: #94a3b8;
+    color: var(--theme-text-muted);
     margin: 0;
   }
 
   .page-footer p:not(:last-child)::after {
     content: '·';
     margin-left: 8px;
-    color: #94a3b8;
+    color: var(--theme-text-muted);
   }
 
   .page-footer a {
-    color: #c2410c;
+    color: var(--theme-primary);
     text-decoration: none;
     font-weight: 500;
   }

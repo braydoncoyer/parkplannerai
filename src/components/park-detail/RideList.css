@@ -2,17 +2,18 @@
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap');
 
 .ride-list-container {
-  --color-bg: #fafbfc;
-  --color-surface: #ffffff;
-  --color-border: #e2e8f0;
-  --color-border-hover: #cbd5e1;
-  --color-text-primary: #1e293b;
-  --color-text-secondary: #475569;
-  --color-text-tertiary: #64748b;
-  --color-primary: #0284c7;
-  --color-success: #10b981;
-  --color-warning: #f59e0b;
-  --color-danger: #f43f5e;
+  /* Reference theme tokens for dark mode support */
+  --color-bg: var(--theme-bg-page);
+  --color-surface: var(--theme-bg-card);
+  --color-border: var(--theme-border);
+  --color-border-hover: var(--theme-border-hover);
+  --color-text-primary: var(--theme-text-primary);
+  --color-text-secondary: var(--theme-text-secondary);
+  --color-text-tertiary: var(--theme-text-muted);
+  --color-primary: var(--theme-info);
+  --color-success: var(--theme-success);
+  --color-warning: var(--theme-warning);
+  --color-danger: var(--theme-danger);
 
   font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
   max-width: 1200px;
@@ -170,7 +171,7 @@
   font-family: inherit;
   font-size: 14px;
   color: var(--color-text-primary);
-  background: white;
+  background: var(--color-surface);
   cursor: pointer;
   transition: border-color 0.2s ease;
 }
@@ -331,7 +332,7 @@
   padding: 10px 20px;
   border: 1px solid var(--color-border);
   border-radius: 8px;
-  background: white;
+  background: var(--color-surface);
   font-family: inherit;
   font-size: 14px;
   font-weight: 500;
@@ -341,7 +342,7 @@
 }
 
 .no-results button:hover {
-  background: var(--color-bg);
+  background: var(--theme-bg-elevated);
 }
 
 /* Error State */
@@ -386,7 +387,8 @@
 }
 
 .retry-button:hover {
-  background: #0369a1;
+  background: var(--theme-info);
+  opacity: 0.9;
 }
 
 /* Skeleton Loading */

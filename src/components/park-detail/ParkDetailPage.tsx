@@ -27,6 +27,7 @@ import {
   ResponsiveContainer,
   ReferenceLine,
 } from 'recharts';
+import { useThemeColors, type ThemeColors } from '../../hooks/useThemeColors';
 import './ParkDetailPage.css';
 import parkImagesData from '../../lib/analytics/data/parkImages.json';
 
@@ -438,8 +439,10 @@ function QuickStats({
 
 function CrowdTimeline({
   historicalData,
+  colors,
 }: {
   historicalData: HistoricalCrowdData | null;
+  colors: ThemeColors;
 }) {
   const [visibleLines, setVisibleLines] = useState({
     today: true,
@@ -572,18 +575,18 @@ function CrowdTimeline({
       <div className="pd-timeline-chart">
         <ResponsiveContainer width="100%" height={220}>
           <LineChart data={chartData} margin={{ top: 20, right: 20, bottom: 20, left: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
+            <CartesianGrid strokeDasharray="3 3" stroke={colors.grid} vertical={false} />
             <XAxis
               dataKey="label"
               axisLine={false}
               tickLine={false}
-              tick={{ fill: '#94a3b8', fontSize: 12 }}
+              tick={{ fill: colors.axis, fontSize: 12 }}
               interval={1}
             />
             <YAxis
               axisLine={false}
               tickLine={false}
-              tick={{ fill: '#94a3b8', fontSize: 12 }}
+              tick={{ fill: colors.axis, fontSize: 12 }}
               tickFormatter={(val) => `${val}m`}
               domain={[0, 'auto']}
               width={40}
@@ -594,9 +597,9 @@ function CrowdTimeline({
             {currentHour >= 9 && currentHour <= 22 && (
               <ReferenceLine
                 x={currentHour > 12 ? `${currentHour - 12}pm` : currentHour === 12 ? '12pm' : `${currentHour}am`}
-                stroke="#c2410c"
+                stroke={colors.chartPrimary}
                 strokeDasharray="4 4"
-                label={{ value: 'Now', position: 'top', fill: '#c2410c', fontSize: 11 }}
+                label={{ value: 'Now', position: 'top', fill: colors.chartPrimary, fontSize: 11 }}
               />
             )}
 
@@ -605,7 +608,7 @@ function CrowdTimeline({
                 type="monotone"
                 dataKey="lastYear"
                 name="Last Year"
-                stroke="#e2e8f0"
+                stroke={colors.borderLight}
                 strokeWidth={2}
                 strokeDasharray="2 4"
                 dot={false}
@@ -617,7 +620,7 @@ function CrowdTimeline({
                 type="monotone"
                 dataKey="lastMonth"
                 name="Last Month"
-                stroke="#cbd5e1"
+                stroke={colors.border}
                 strokeWidth={2}
                 strokeDasharray="4 4"
                 dot={false}
@@ -629,7 +632,7 @@ function CrowdTimeline({
                 type="monotone"
                 dataKey="lastWeek"
                 name="Last Week"
-                stroke="#94a3b8"
+                stroke={colors.textMuted}
                 strokeWidth={2}
                 strokeDasharray="6 3"
                 dot={false}
@@ -641,10 +644,10 @@ function CrowdTimeline({
                 type="monotone"
                 dataKey="today"
                 name="Today"
-                stroke="#c2410c"
+                stroke={colors.chartPrimary}
                 strokeWidth={3}
-                dot={{ fill: '#c2410c', strokeWidth: 0, r: 3 }}
-                activeDot={{ r: 5, fill: '#c2410c' }}
+                dot={{ fill: colors.chartPrimary, strokeWidth: 0, r: 3 }}
+                activeDot={{ r: 5, fill: colors.chartPrimary }}
                 connectNulls
               />
             )}
@@ -1010,6 +1013,9 @@ export default function ParkDetailPage({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Get theme colors for charts
+  const colors = useThemeColors();
+
   useEffect(() => {
     async function fetchAll() {
       setLoading(true);
@@ -1066,20 +1072,12 @@ export default function ParkDetailPage({
   if (error || !data) {
     return (
       <div className="pd-container">
-        <div className="pd-content" style={{ textAlign: 'center', padding: '80px 20px' }}>
-          <h2 style={{ marginBottom: '16px', color: '#1e293b' }}>Unable to load park data</h2>
-          <p style={{ color: '#64748b', marginBottom: '24px' }}>{error}</p>
+        <div className="pd-error-state">
+          <h2 className="pd-error-title">Unable to load park data</h2>
+          <p className="pd-error-text">{error}</p>
           <button
             onClick={() => window.location.reload()}
-            style={{
-              padding: '12px 24px',
-              background: '#c2410c',
-              color: '#fff',
-              border: 'none',
-              borderRadius: '8px',
-              fontWeight: '600',
-              cursor: 'pointer',
-            }}
+            className="pd-error-button"
           >
             Try Again
           </button>
@@ -1114,7 +1112,7 @@ export default function ParkDetailPage({
           crowdLevel={crowdLevel}
         />
 
-        <CrowdTimeline historicalData={historicalData} />
+        <CrowdTimeline historicalData={historicalData} colors={colors} />
 
         <EntertainmentHighlights entertainment={entertainment} />
 

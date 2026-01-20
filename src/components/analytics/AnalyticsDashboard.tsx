@@ -13,6 +13,7 @@ import {
   Line,
   Legend,
 } from 'recharts';
+import { useThemeColors, type ThemeColors } from '../../hooks/useThemeColors';
 import './AnalyticsDashboard.css';
 
 interface Park {
@@ -259,7 +260,7 @@ function InsightCard({
   );
 }
 
-function ParkComparisonChart({ parks }: { parks: Park[] }) {
+function ParkComparisonChart({ parks, colors }: { parks: Park[]; colors: ThemeColors }) {
   // Sort parks: open parks first (by avgWait desc), then closed parks alphabetically
   const sortedParks = [...parks].sort((a, b) => {
     const aOpen = a.isOpen && a.stats.avgWaitTime > 0;
@@ -284,31 +285,31 @@ function ParkComparisonChart({ parks }: { parks: Park[] }) {
     <div className="chart-container">
       <h3>Current Wait Times by Park</h3>
       {closedCount > 0 && (
-        <p className="chart-subtitle" style={{ fontSize: '12px', color: '#64748b', marginTop: '-8px' }}>
+        <p className="chart-subtitle" style={{ fontSize: '12px', color: colors.textSecondary, marginTop: '-8px' }}>
           {closedCount} park{closedCount > 1 ? 's' : ''} currently closed (shown with 0 wait)
         </p>
       )}
       <ResponsiveContainer width="100%" height={300}>
         <BarChart data={chartData} margin={{ top: 20, right: 30, left: 0, bottom: 60 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#e2e0db" />
+          <CartesianGrid strokeDasharray="3 3" stroke={colors.grid} />
           <XAxis
             dataKey="name"
-            tick={{ fontSize: 11, fill: '#64748b' }}
+            tick={{ fontSize: 11, fill: colors.axis }}
             angle={-45}
             textAnchor="end"
             height={80}
           />
-          <YAxis tick={{ fontSize: 12, fill: '#64748b' }} />
+          <YAxis tick={{ fontSize: 12, fill: colors.axis }} />
           <Tooltip
             contentStyle={{
-              backgroundColor: 'white',
-              border: '1px solid #e2e0db',
+              backgroundColor: colors.surface,
+              border: `1px solid ${colors.border}`,
               borderRadius: '8px',
               fontSize: '13px',
             }}
           />
-          <Bar dataKey="avgWait" name="Avg Wait" fill="#c2410c" radius={[4, 4, 0, 0]} />
-          <Bar dataKey="maxWait" name="Max Wait" fill="#ea580c" radius={[4, 4, 0, 0]} />
+          <Bar dataKey="avgWait" name="Avg Wait" fill={colors.chartPrimary} radius={[4, 4, 0, 0]} />
+          <Bar dataKey="maxWait" name="Max Wait" fill={colors.primary} radius={[4, 4, 0, 0]} />
         </BarChart>
       </ResponsiveContainer>
     </div>
@@ -317,10 +318,12 @@ function ParkComparisonChart({ parks }: { parks: Park[] }) {
 
 function WeeklyTrendChart({
   data,
-  isRealData
+  isRealData,
+  colors
 }: {
   data: { day: string; disney: number; universal: number }[];
   isRealData: boolean;
+  colors: ThemeColors;
 }) {
   return (
     <div className="chart-container">
@@ -340,13 +343,13 @@ function WeeklyTrendChart({
       </p>
       <ResponsiveContainer width="100%" height={280}>
         <LineChart data={data} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#e2e0db" />
-          <XAxis dataKey="day" tick={{ fontSize: 12, fill: '#64748b' }} />
-          <YAxis tick={{ fontSize: 12, fill: '#64748b' }} />
+          <CartesianGrid strokeDasharray="3 3" stroke={colors.grid} />
+          <XAxis dataKey="day" tick={{ fontSize: 12, fill: colors.axis }} />
+          <YAxis tick={{ fontSize: 12, fill: colors.axis }} />
           <Tooltip
             contentStyle={{
-              backgroundColor: 'white',
-              border: '1px solid #e2e0db',
+              backgroundColor: colors.surface,
+              border: `1px solid ${colors.border}`,
               borderRadius: '8px',
               fontSize: '13px',
             }}
@@ -356,17 +359,17 @@ function WeeklyTrendChart({
             type="monotone"
             dataKey="disney"
             name="Disney Parks"
-            stroke="#c2410c"
+            stroke={colors.chartPrimary}
             strokeWidth={2}
-            dot={{ fill: '#c2410c', strokeWidth: 2 }}
+            dot={{ fill: colors.chartPrimary, strokeWidth: 2 }}
           />
           <Line
             type="monotone"
             dataKey="universal"
             name="Universal Parks"
-            stroke="#65a30d"
+            stroke={colors.chartSecondary}
             strokeWidth={2}
-            dot={{ fill: '#65a30d', strokeWidth: 2 }}
+            dot={{ fill: colors.chartSecondary, strokeWidth: 2 }}
           />
         </LineChart>
       </ResponsiveContainer>
@@ -379,13 +382,15 @@ function HourlyPatternChart({
   isRealData,
   parks,
   selectedPark,
-  onParkChange
+  onParkChange,
+  colors
 }: {
   data: { hour: string; wait: number }[];
   isRealData: boolean;
   parks: Array<{ externalId: string; name: string; operator: string }>;
   selectedPark: string | undefined;
   onParkChange: (parkId: string | undefined) => void;
+  colors: ThemeColors;
 }) {
   // Find selected park info for subtitle
   const selectedParkInfo = selectedPark
@@ -435,13 +440,13 @@ function HourlyPatternChart({
       </p>
       <ResponsiveContainer width="100%" height={280}>
         <BarChart data={data} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#e2e0db" />
-          <XAxis dataKey="hour" tick={{ fontSize: 11, fill: '#64748b' }} />
-          <YAxis tick={{ fontSize: 12, fill: '#64748b' }} />
+          <CartesianGrid strokeDasharray="3 3" stroke={colors.grid} />
+          <XAxis dataKey="hour" tick={{ fontSize: 11, fill: colors.axis }} />
+          <YAxis tick={{ fontSize: 12, fill: colors.axis }} />
           <Tooltip
             contentStyle={{
-              backgroundColor: 'white',
-              border: '1px solid #e2e0db',
+              backgroundColor: colors.surface,
+              border: `1px solid ${colors.border}`,
               borderRadius: '8px',
               fontSize: '13px',
             }}
@@ -449,7 +454,7 @@ function HourlyPatternChart({
           <Bar
             dataKey="wait"
             name="Avg Wait (min)"
-            fill="#c2410c"
+            fill={colors.chartPrimary}
             radius={[4, 4, 0, 0]}
           />
         </BarChart>
@@ -460,10 +465,12 @@ function HourlyPatternChart({
 
 function HistoricalTrendChart({
   data,
-  isRealData
+  isRealData,
+  colors
 }: {
   data: { date: string; disney: number | null; universal: number | null }[];
   isRealData: boolean;
+  colors: ThemeColors;
 }) {
   // Filter to last 14 data points for readability if there's a lot of data
   const displayData = data.length > 14 ? data.slice(-14) : data;
@@ -487,22 +494,22 @@ function HistoricalTrendChart({
       {isRealData && displayData.length > 0 ? (
         <ResponsiveContainer width="100%" height={300}>
           <LineChart data={displayData} margin={{ top: 20, right: 30, left: 0, bottom: 20 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#e2e0db" />
+            <CartesianGrid strokeDasharray="3 3" stroke={colors.grid} />
             <XAxis
               dataKey="date"
-              tick={{ fontSize: 11, fill: '#64748b' }}
+              tick={{ fontSize: 11, fill: colors.axis }}
               angle={-45}
               textAnchor="end"
               height={60}
             />
             <YAxis
-              tick={{ fontSize: 12, fill: '#64748b' }}
-              label={{ value: 'Avg Wait (min)', angle: -90, position: 'insideLeft', style: { textAnchor: 'middle', fill: '#64748b', fontSize: 12 } }}
+              tick={{ fontSize: 12, fill: colors.axis }}
+              label={{ value: 'Avg Wait (min)', angle: -90, position: 'insideLeft', style: { textAnchor: 'middle', fill: colors.axis, fontSize: 12 } }}
             />
             <Tooltip
               contentStyle={{
-                backgroundColor: 'white',
-                border: '1px solid #e2e0db',
+                backgroundColor: colors.surface,
+                border: `1px solid ${colors.border}`,
                 borderRadius: '8px',
                 fontSize: '13px',
               }}
@@ -513,18 +520,18 @@ function HistoricalTrendChart({
               type="monotone"
               dataKey="disney"
               name="Disney Parks"
-              stroke="#c2410c"
+              stroke={colors.chartPrimary}
               strokeWidth={2}
-              dot={{ fill: '#c2410c', strokeWidth: 2, r: 3 }}
+              dot={{ fill: colors.chartPrimary, strokeWidth: 2, r: 3 }}
               connectNulls
             />
             <Line
               type="monotone"
               dataKey="universal"
               name="Universal Parks"
-              stroke="#65a30d"
+              stroke={colors.chartSecondary}
               strokeWidth={2}
-              dot={{ fill: '#65a30d', strokeWidth: 2, r: 3 }}
+              dot={{ fill: colors.chartSecondary, strokeWidth: 2, r: 3 }}
               connectNulls
             />
           </LineChart>
@@ -544,13 +551,15 @@ function LandComparisonChart({
   isRealData,
   parks,
   selectedPark,
-  onParkChange
+  onParkChange,
+  colors
 }: {
   data: { land: string; fullName: string; avgWait: number; samples: number }[];
   isRealData: boolean;
   parks: { externalId: string; name: string; operator: string }[];
   selectedPark: string;
   onParkChange: (parkId: string) => void;
+  colors: ThemeColors;
 }) {
   // Calculate dynamic height based on number of items
   const chartHeight = Math.max(200, data.length * 32 + 40);
@@ -619,23 +628,23 @@ function LandComparisonChart({
             layout="vertical"
             margin={{ top: 10, right: 20, left: 0, bottom: 10 }}
           >
-            <CartesianGrid strokeDasharray="3 3" stroke="#e2e0db" horizontal={true} vertical={false} />
+            <CartesianGrid strokeDasharray="3 3" stroke={colors.grid} horizontal={true} vertical={false} />
             <XAxis
               type="number"
-              tick={{ fontSize: 12, fill: '#64748b' }}
+              tick={{ fontSize: 12, fill: colors.axis }}
               domain={[0, 'auto']}
               unit=" min"
             />
             <YAxis
               type="category"
               dataKey="land"
-              tick={{ fontSize: 12, fill: '#64748b' }}
+              tick={{ fontSize: 12, fill: colors.axis }}
               width={110}
             />
             <Tooltip
               contentStyle={{
-                backgroundColor: 'white',
-                border: '1px solid #e2e0db',
+                backgroundColor: colors.surface,
+                border: `1px solid ${colors.border}`,
                 borderRadius: '8px',
                 fontSize: '13px',
               }}
@@ -648,7 +657,7 @@ function LandComparisonChart({
               dataKey="avgWait"
               name="Avg Wait"
               radius={[0, 4, 4, 0]}
-              fill="#c2410c"
+              fill={colors.chartPrimary}
             />
           </BarChart>
         </ResponsiveContainer>
@@ -665,7 +674,8 @@ function LandComparisonChart({
 function ParkHoursChart({
   data,
   summary,
-  isRealData
+  isRealData,
+  colors
 }: {
   data: { day: string; avgHours: number; extendedDays: number; totalDays: number }[];
   summary: {
@@ -677,6 +687,7 @@ function ParkHoursChart({
     parksTracked: number;
   } | null;
   isRealData: boolean;
+  colors: ThemeColors;
 }) {
   return (
     <div className="chart-container">
@@ -698,17 +709,17 @@ function ParkHoursChart({
         <>
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={data} margin={{ top: 10, right: 30, left: 0, bottom: 10 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e2e0db" />
-              <XAxis dataKey="day" tick={{ fontSize: 12, fill: '#64748b' }} />
+              <CartesianGrid strokeDasharray="3 3" stroke={colors.grid} />
+              <XAxis dataKey="day" tick={{ fontSize: 12, fill: colors.axis }} />
               <YAxis
-                tick={{ fontSize: 12, fill: '#64748b' }}
+                tick={{ fontSize: 12, fill: colors.axis }}
                 domain={[0, 'auto']}
-                label={{ value: 'Hours', angle: -90, position: 'insideLeft', style: { textAnchor: 'middle', fill: '#64748b', fontSize: 11 } }}
+                label={{ value: 'Hours', angle: -90, position: 'insideLeft', style: { textAnchor: 'middle', fill: colors.axis, fontSize: 11 } }}
               />
               <Tooltip
                 contentStyle={{
-                  backgroundColor: 'white',
-                  border: '1px solid #e2e0db',
+                  backgroundColor: colors.surface,
+                  border: `1px solid ${colors.border}`,
                   borderRadius: '8px',
                   fontSize: '13px',
                 }}
@@ -717,7 +728,7 @@ function ParkHoursChart({
               <Bar
                 dataKey="avgHours"
                 name="Avg Hours"
-                fill="#0891b2"
+                fill={colors.info}
                 radius={[4, 4, 0, 0]}
               />
             </BarChart>
@@ -817,6 +828,9 @@ export default function AnalyticsDashboard() {
   const [selectedLandPark, setSelectedLandPark] = useState<string>('16');
   const [selectedHourlyPark, setSelectedHourlyPark] = useState<string | undefined>(undefined);
 
+  // Get theme colors for charts
+  const colors = useThemeColors();
+
   // Convex queries for historical data
   const weeklyPatterns = useQuery(api.queries.analytics.getWeeklyPatterns, { weeks: 4 });
   const hourlyPatterns = useQuery(
@@ -915,7 +929,7 @@ export default function AnalyticsDashboard() {
       {/* Current Park Comparison */}
       {data && data.parks.length > 0 && (
         <section className="chart-section">
-          <ParkComparisonChart parks={data.parks} />
+          <ParkComparisonChart parks={data.parks} colors={colors} />
         </section>
       )}
 
@@ -924,6 +938,7 @@ export default function AnalyticsDashboard() {
         <HistoricalTrendChart
           data={historicalTrend?.data ?? []}
           isRealData={historicalTrend?.hasEnoughData ?? false}
+          colors={colors}
         />
       </section>
 
@@ -935,11 +950,13 @@ export default function AnalyticsDashboard() {
           parks={parksWithLands}
           selectedPark={selectedLandPark}
           onParkChange={setSelectedLandPark}
+          colors={colors}
         />
         <ParkHoursChart
           data={parkHours?.data ?? []}
           summary={parkHours?.summary ?? null}
           isRealData={parkHours?.hasEnoughData ?? false}
+          colors={colors}
         />
       </section>
 
@@ -948,6 +965,7 @@ export default function AnalyticsDashboard() {
         <WeeklyTrendChart
           data={weeklyChartData}
           isRealData={weeklyPatterns?.hasEnoughData ?? false}
+          colors={colors}
         />
         <HourlyPatternChart
           data={hourlyChartData}
@@ -955,6 +973,7 @@ export default function AnalyticsDashboard() {
           parks={allParks ?? []}
           selectedPark={selectedHourlyPark}
           onParkChange={setSelectedHourlyPark}
+          colors={colors}
         />
       </section>
 

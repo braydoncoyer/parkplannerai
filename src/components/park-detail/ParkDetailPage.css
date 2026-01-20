@@ -5,34 +5,35 @@
    CSS Variables
    ============================================ */
 .pd-container {
-  --pd-primary: #c2410c;
-  --pd-primary-light: #fff7ed;
-  --pd-primary-dark: #9a3412;
-  --pd-success: #65a30d;
-  --pd-success-light: #ecfccb;
-  --pd-warning: #d97706;
-  --pd-warning-light: #fef3c7;
-  --pd-danger: #dc2626;
-  --pd-danger-light: #fee2e2;
-  --pd-background: #fdfbf7;
-  --pd-card: #ffffff;
-  --pd-text: #1e293b;
-  --pd-text-secondary: #64748b;
-  --pd-text-muted: #94a3b8;
-  --pd-border: #e2e8f0;
-  --pd-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
-  --pd-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-  --pd-shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
+  /* Reference theme tokens for dark mode support */
+  --pd-primary: var(--theme-primary);
+  --pd-primary-light: var(--theme-primary-light);
+  --pd-primary-dark: var(--theme-primary-hover);
+  --pd-success: var(--theme-success);
+  --pd-success-light: var(--theme-success-light);
+  --pd-warning: var(--theme-warning);
+  --pd-warning-light: var(--theme-warning-light);
+  --pd-danger: var(--theme-danger);
+  --pd-danger-light: var(--theme-danger-light);
+  --pd-background: var(--theme-bg-page);
+  --pd-card: var(--theme-bg-card);
+  --pd-text: var(--theme-text-primary);
+  --pd-text-secondary: var(--theme-text-secondary);
+  --pd-text-muted: var(--theme-text-muted);
+  --pd-border: var(--theme-border);
+  --pd-shadow-sm: var(--theme-shadow-sm);
+  --pd-shadow: var(--theme-shadow);
+  --pd-shadow-lg: var(--theme-shadow-lg);
   --pd-radius: 16px;
   --pd-radius-sm: 8px;
   --pd-font-display: 'Fraunces', Georgia, serif;
   --pd-font-body: 'DM Sans', -apple-system, sans-serif;
 
   /* Wait time colors */
-  --pd-wait-green: #22c55e;
-  --pd-wait-amber: #f59e0b;
-  --pd-wait-orange: #f97316;
-  --pd-wait-red: #ef4444;
+  --pd-wait-green: var(--theme-wait-green);
+  --pd-wait-amber: var(--theme-wait-amber);
+  --pd-wait-orange: var(--theme-wait-orange);
+  --pd-wait-red: var(--theme-wait-red);
 }
 
 /* ============================================
@@ -924,7 +925,7 @@
 }
 
 .pd-land-header:hover {
-  background: #f1f5f9;
+  background: var(--theme-bg-elevated);
 }
 
 .pd-land-name {
@@ -1117,9 +1118,9 @@
 .pd-skeleton {
   background: linear-gradient(
     90deg,
-    var(--pd-border) 0%,
-    #f1f5f9 50%,
-    var(--pd-border) 100%
+    var(--theme-skeleton-base) 0%,
+    var(--theme-skeleton-shine) 50%,
+    var(--theme-skeleton-base) 100%
   );
   background-size: 200% 100%;
   animation: pd-shimmer 1.5s infinite;
@@ -1212,4 +1213,43 @@
   .pd-distribution-chart {
     height: 100px;
   }
+}
+
+/* ============================================
+   Error State
+   ============================================ */
+.pd-error-state {
+  text-align: center;
+  padding: 80px 20px;
+}
+
+.pd-error-title {
+  margin-bottom: 16px;
+  color: var(--pd-text);
+  font-family: var(--pd-font-display);
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.pd-error-text {
+  color: var(--pd-text-muted);
+  margin-bottom: 24px;
+  font-size: 15px;
+}
+
+.pd-error-button {
+  padding: 12px 24px;
+  background: var(--pd-primary);
+  color: #fff;
+  border: none;
+  border-radius: var(--pd-radius-sm);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.pd-error-button:hover {
+  background: var(--pd-primary-hover);
 }
