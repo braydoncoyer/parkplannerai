@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Clock, TrendingUp, MapPin, ChevronRight, RefreshCw, Moon } from 'lucide-react';
 import './Dashboard.css';
 import parkImagesData from '../../lib/analytics/data/parkImages.json';
+import { CROWD_LABELS } from '../../lib/constants/crowdLevels';
 
 interface ParkStats {
   avgWaitTime: number;
@@ -49,13 +50,6 @@ for (const resortParks of Object.values(parkImagesData)) {
 }
 
 const DEFAULT_IMAGE = 'https://images.pexels.com/photos/8183994/pexels-photo-8183994.jpeg?auto=compress&cs=tinysrgb&w=800';
-
-const CROWD_LABELS: Record<string, string> = {
-  low: 'Quiet',
-  moderate: 'Moderate',
-  high: 'Busy',
-  'very-high': 'Very Busy',
-};
 
 function formatTimeAgo(dateString: string): string {
   const date = new Date(dateString);

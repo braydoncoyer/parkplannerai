@@ -43,17 +43,9 @@
   position: absolute;
   inset: 0;
   pointer-events: none;
+  z-index: 0;
 }
 
-.hero-grid {
-  position: absolute;
-  inset: 0;
-  background-image:
-    linear-gradient(rgba(194, 65, 12, 0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(194, 65, 12, 0.03) 1px, transparent 1px);
-  background-size: 60px 60px;
-  mask-image: radial-gradient(ellipse 80% 80% at 50% 50%, black 20%, transparent 80%);
-}
 
 .hero-glow {
   position: absolute;
@@ -76,6 +68,202 @@
   background: var(--accent-amber);
   bottom: -150px;
   left: -100px;
+}
+
+/* ==================== VINTAGE POSTER CASTLE ==================== */
+/* Inspired by 1950s-60s Disneyland travel poster aesthetic */
+
+.hero-castle {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+}
+
+.castle-svg {
+  width: 100%;
+  height: 100%;
+  opacity: 0.18;
+  transform: translateY(10%);
+}
+
+/* Sunburst glow - subtle pulsing animation */
+.sunburst {
+  animation: sunburstPulse 8s ease-in-out infinite;
+}
+
+@keyframes sunburstPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.85; }
+}
+
+/* Rolling hills - subtle parallax-like drift */
+.hills-far {
+  animation: hillsDrift 20s ease-in-out infinite;
+}
+
+.hills-near {
+  animation: hillsDrift 15s ease-in-out infinite reverse;
+}
+
+@keyframes hillsDrift {
+  0%, 100% { transform: translateX(0); }
+  50% { transform: translateX(8px); }
+}
+
+/* Castle silhouette styling */
+.castle-silhouette {
+  filter: drop-shadow(0 4px 20px rgba(120, 53, 15, 0.3));
+}
+
+/* Sparkle animations - staggered twinkle effect */
+@keyframes sparkleGlow {
+  0%, 100% {
+    opacity: 0.3;
+    transform: scale(0.8);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.2);
+  }
+}
+
+@keyframes sparklePulse {
+  0%, 100% {
+    opacity: 0.5;
+    transform: scale(1);
+  }
+  25% {
+    opacity: 1;
+    transform: scale(1.3);
+  }
+  75% {
+    opacity: 0.6;
+    transform: scale(0.9);
+  }
+}
+
+.sparkle-1 { animation: sparkleGlow 3s ease-in-out infinite; }
+.sparkle-2 { animation: sparkleGlow 3.5s ease-in-out infinite 0.5s; }
+.sparkle-3 { animation: sparklePulse 4s ease-in-out infinite 0.2s; }
+.sparkle-4 { animation: sparkleGlow 2.8s ease-in-out infinite 1s; }
+.sparkle-5 { animation: sparkleGlow 3.2s ease-in-out infinite 1.5s; }
+.sparkle-6 { animation: sparklePulse 3s ease-in-out infinite 0.8s; }
+.sparkle-7 { animation: sparklePulse 3.4s ease-in-out infinite 1.2s; }
+.sparkle-8 { animation: sparkleGlow 2.5s ease-in-out infinite 2s; }
+.sparkle-9 { animation: sparkleGlow 2.7s ease-in-out infinite 0.3s; }
+.sparkle-10 { animation: sparklePulse 3.1s ease-in-out infinite 1.8s; }
+.sparkle-11 { animation: sparklePulse 2.9s ease-in-out infinite 0.7s; }
+.sparkle-12 { animation: sparkleGlow 3.3s ease-in-out infinite 1.3s; }
+.sparkle-13 { animation: sparkleGlow 2.6s ease-in-out infinite 2.2s; }
+
+/* Firefly floating animation */
+@keyframes fireflyFloat {
+  0%, 100% {
+    transform: translate(0, 0);
+    opacity: 0.4;
+  }
+  25% {
+    transform: translate(10px, -15px);
+    opacity: 0.8;
+  }
+  50% {
+    transform: translate(-5px, -25px);
+    opacity: 0.5;
+  }
+  75% {
+    transform: translate(15px, -10px);
+    opacity: 0.9;
+  }
+}
+
+@keyframes fireflyDrift {
+  0%, 100% {
+    transform: translate(0, 0);
+    opacity: 0.3;
+  }
+  33% {
+    transform: translate(-12px, -20px);
+    opacity: 0.7;
+  }
+  66% {
+    transform: translate(8px, -30px);
+    opacity: 0.4;
+  }
+}
+
+.firefly-1 { animation: fireflyFloat 8s ease-in-out infinite; }
+.firefly-2 { animation: fireflyDrift 9s ease-in-out infinite 1s; }
+.firefly-3 { animation: fireflyFloat 7s ease-in-out infinite 2s; }
+.firefly-4 { animation: fireflyDrift 10s ease-in-out infinite 0.5s; }
+.firefly-5 { animation: fireflyFloat 8.5s ease-in-out infinite 3s; }
+.firefly-6 { animation: fireflyDrift 7.5s ease-in-out infinite 1.5s; }
+
+/* Vintage grain texture overlay */
+.vintage-grain {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.03;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+  mix-blend-mode: overlay;
+}
+
+/* ==================== DARK MODE ==================== */
+[data-actual-theme="dark"] .castle-svg {
+  opacity: 0.22;
+}
+
+[data-actual-theme="dark"] .sunburst {
+  opacity: 0.7;
+}
+
+[data-actual-theme="dark"] .castle-silhouette {
+  filter: drop-shadow(0 4px 30px rgba(251, 191, 36, 0.2));
+}
+
+[data-actual-theme="dark"] .vintage-grain {
+  opacity: 0.05;
+  mix-blend-mode: soft-light;
+}
+
+/* ==================== MOBILE RESPONSIVE ==================== */
+@media (max-width: 768px) {
+  .castle-svg {
+    opacity: 0.12;
+    transform: translateY(15%);
+  }
+
+  [data-actual-theme="dark"] .castle-svg {
+    opacity: 0.16;
+  }
+
+  /* Reduce animation complexity on mobile for performance */
+  .fireflies,
+  .hills-far,
+  .hills-near {
+    animation: none;
+  }
+}
+
+/* Reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+  .sunburst,
+  .hills-far,
+  .hills-near,
+  .sparkle,
+  .firefly {
+    animation: none;
+  }
+
+  .sparkle {
+    opacity: 0.6;
+  }
+
+  .firefly {
+    opacity: 0.5;
+  }
 }
 
 .hero-content {

@@ -102,10 +102,14 @@ async function fetchParkWaitTimes(parkId: number): Promise<{
 
     const data: QueueTimesResponse = await response.json();
 
-    // Flatten all rides from all lands
+    // Flatten all rides from all lands, excluding "Single Rider" entries
+    // to match the detail page logic and ensure consistent crowd level calculations
     const allRides: QueueTimesRide[] = [];
     for (const land of data.lands || []) {
-      allRides.push(...(land.rides || []));
+      const filteredRides = (land.rides || []).filter(
+        (ride) => !ride.name.toLowerCase().includes('single rider')
+      );
+      allRides.push(...filteredRides);
     }
 
     const openRides = allRides.filter((r) => r.is_open && r.wait_time !== null);

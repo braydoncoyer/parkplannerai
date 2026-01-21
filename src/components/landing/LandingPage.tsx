@@ -169,14 +169,246 @@ function FilterBar({
   );
 }
 
+function CastleSilhouette() {
+  return (
+    <div className="hero-castle">
+      <svg
+        className="castle-svg"
+        viewBox="0 0 1200 800"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+        preserveAspectRatio="xMidYMax slice"
+      >
+        <defs>
+          {/* Radial sunburst gradient - the heart of vintage poster aesthetic */}
+          <radialGradient id="sunburstGlow" cx="50%" cy="65%" r="60%" fx="50%" fy="65%">
+            <stop offset="0%" stopColor="#fef3c7" stopOpacity="0.9" />
+            <stop offset="25%" stopColor="#fde68a" stopOpacity="0.6" />
+            <stop offset="50%" stopColor="#fbbf24" stopOpacity="0.3" />
+            <stop offset="75%" stopColor="#f59e0b" stopOpacity="0.15" />
+            <stop offset="100%" stopColor="#ea580c" stopOpacity="0" />
+          </radialGradient>
+
+          {/* Atmospheric sky gradient */}
+          <linearGradient id="vintagesky" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor="#fef7ed" stopOpacity="0" />
+            <stop offset="40%" stopColor="#fed7aa" stopOpacity="0.2" />
+            <stop offset="70%" stopColor="#fdba74" stopOpacity="0.4" />
+            <stop offset="100%" stopColor="#fb923c" stopOpacity="0.5" />
+          </linearGradient>
+
+          {/* Castle silhouette gradient for depth */}
+          <linearGradient id="castleFill" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor="#92400e" />
+            <stop offset="100%" stopColor="#78350f" />
+          </linearGradient>
+
+          {/* Distant hills gradient */}
+          <linearGradient id="hillsFar" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor="#d97706" stopOpacity="0.3" />
+            <stop offset="100%" stopColor="#b45309" stopOpacity="0.4" />
+          </linearGradient>
+
+          {/* Near hills/trees gradient */}
+          <linearGradient id="hillsNear" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor="#92400e" stopOpacity="0.5" />
+            <stop offset="100%" stopColor="#78350f" stopOpacity="0.6" />
+          </linearGradient>
+
+          {/* Noise filter for vintage texture */}
+          <filter id="grain" x="0%" y="0%" width="100%" height="100%">
+            <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="4" result="noise" />
+            <feColorMatrix type="saturate" values="0" />
+            <feBlend in="SourceGraphic" in2="noise" mode="multiply" />
+          </filter>
+
+          {/* Soft glow for sparkles */}
+          <filter id="sparkleGlow" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation="2" result="blur" />
+            <feMerge>
+              <feMergeNode in="blur" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+        </defs>
+
+        {/* Layer 1: Atmospheric sky wash */}
+        <rect x="0" y="0" width="1200" height="800" fill="url(#vintagesky)" />
+
+        {/* Layer 2: Radial sunburst behind castle */}
+        <ellipse cx="600" cy="520" rx="500" ry="400" fill="url(#sunburstGlow)" className="sunburst" />
+
+        {/* Layer 3: Distant rolling hills - furthest */}
+        <path
+          d="M0 650 Q150 580 300 620 Q450 660 600 600 Q750 540 900 590 Q1050 640 1200 610 L1200 800 L0 800 Z"
+          fill="url(#hillsFar)"
+          className="hills-far"
+        />
+
+        {/* Layer 4: Mid-ground hills with trees */}
+        <path
+          d="M0 700 Q100 650 200 680 Q350 720 450 670 Q500 650 550 660 Q650 680 750 650 Q850 620 950 660 Q1100 710 1200 680 L1200 800 L0 800 Z"
+          fill="url(#hillsNear)"
+          className="hills-near"
+        />
+
+        {/* Layer 5: Castle Silhouette - Authentic Cinderella Castle */}
+        <g className="castle-silhouette" fill="url(#castleFill)">
+
+          {/* === BASE LEVEL - Grand entrance and foundation === */}
+          {/* Main base structure with entrance arch */}
+          <path d="M420 800 L420 620 L480 620 L480 580 L500 580 L500 620 L700 620 L700 580 L720 580 L720 620 L780 620 L780 800 Z" />
+          {/* Entrance archway cutout effect - darker */}
+          <path d="M560 800 L560 680 Q600 640 640 680 L640 800 Z" fill="#451a03" fillOpacity="0.5" />
+
+          {/* === SECOND TIER - Wedding cake level === */}
+          <path d="M460 620 L460 520 L540 520 L540 480 L560 480 L560 520 L640 520 L640 480 L660 480 L660 520 L740 520 L740 620 Z" />
+
+          {/* === LEFT WING TOWERS === */}
+          {/* Far left outer tower - shortest */}
+          <rect x="340" y="580" width="35" height="220" />
+          <path d="M335 580 L357.5 520 L380 580 Z" className="spire" />
+          <path d="M352 520 L357.5 480 L363 520 Z" className="spire-tip" />
+
+          {/* Left secondary tower */}
+          <rect x="385" y="520" width="40" height="280" />
+          <path d="M380 520 L405 440 L430 520 Z" className="spire" />
+          <path d="M398 440 L405 390 L412 440 Z" className="spire-tip" />
+
+          {/* Left cluster turret - small */}
+          <rect x="435" y="480" width="25" height="140" />
+          <path d="M432 480 L447.5 420 L463 480 Z" className="spire" />
+
+          {/* === CENTRAL TOWER COMPLEX - The iconic centerpiece === */}
+          {/* Main central tower body - tiered */}
+          <path d="M520 520 L520 380 L540 380 L540 340 L550 340 L550 380 L570 380 L570 320 L580 320 L580 380 L590 380 L590 300 L610 300 L610 380 L620 380 L620 320 L630 320 L630 380 L650 380 L650 340 L660 340 L660 380 L680 380 L680 520 Z" />
+
+          {/* THE GRAND CENTRAL SPIRE - Needle-thin and dramatic */}
+          <path d="M592 300 L600 60 L608 300 Z" className="main-spire" />
+          {/* Spire finial - the very top */}
+          <path d="M597 60 L600 25 L603 60 Z" className="finial" />
+
+          {/* Clustered turrets around main spire - LEFT side */}
+          {/* Turret 1 - tallest secondary */}
+          <rect x="545" y="340" width="22" height="180" />
+          <path d="M542 340 L556 240 L570 340 Z" className="spire" />
+          <path d="M552 240 L556 200 L560 240 Z" className="spire-tip" />
+
+          {/* Turret 2 - medium */}
+          <rect x="520" y="380" width="18" height="140" />
+          <path d="M517 380 L529 310 L541 380 Z" className="spire" />
+
+          {/* Clustered turrets around main spire - RIGHT side */}
+          {/* Turret 3 - tallest secondary (asymmetric - slightly shorter than left) */}
+          <rect x="633" y="355" width="22" height="165" />
+          <path d="M630 355 L644 260 L658 355 Z" className="spire" />
+          <path d="M640 260 L644 225 L648 260 Z" className="spire-tip" />
+
+          {/* Turret 4 - medium */}
+          <rect x="662" y="380" width="18" height="140" />
+          <path d="M659 380 L671 315 L683 380 Z" className="spire" />
+
+          {/* Small decorative turret - left of main */}
+          <rect x="573" y="320" width="14" height="60" />
+          <path d="M570 320 L580 270 L590 320 Z" className="spire" />
+
+          {/* Small decorative turret - right of main */}
+          <rect x="613" y="320" width="14" height="60" />
+          <path d="M610 320 L620 275 L630 320 Z" className="spire" />
+
+          {/* === RIGHT WING TOWERS === */}
+          {/* Right cluster turret - small */}
+          <rect x="740" y="480" width="25" height="140" />
+          <path d="M737 480 L752.5 420 L768 480 Z" className="spire" />
+
+          {/* Right secondary tower */}
+          <rect x="775" y="520" width="40" height="280" />
+          <path d="M770 520 L795 450 L820 520 Z" className="spire" />
+          <path d="M788 450 L795 405 L802 450 Z" className="spire-tip" />
+
+          {/* Far right outer tower - matches left for balance */}
+          <rect x="825" y="580" width="35" height="220" />
+          <path d="M820 580 L842.5 530 L865 580 Z" className="spire" />
+          <path d="M837 530 L842.5 495 L848 530 Z" className="spire-tip" />
+
+          {/* === DECORATIVE PENNANT FLAGS === */}
+          {/* Flag on main spire */}
+          <path d="M600 25 L600 10 M600 10 L620 18 L600 26" stroke="#c2410c" strokeWidth="2" fill="#ea580c" />
+
+          {/* Small flags on secondary spires */}
+          <path d="M556 200 L556 188 L568 194 L556 200" fill="#ea580c" fillOpacity="0.8" />
+          <path d="M644 225 L644 213 L656 219 L644 225" fill="#ea580c" fillOpacity="0.8" />
+        </g>
+
+        {/* Layer 6: Foreground treeline silhouettes */}
+        <g className="trees-foreground">
+          {/* Left trees */}
+          <ellipse cx="-20" cy="780" rx="120" ry="80" fill="#451a03" fillOpacity="0.7" />
+          <ellipse cx="80" cy="800" rx="100" ry="60" fill="#78350f" fillOpacity="0.6" />
+          <ellipse cx="160" cy="820" rx="80" ry="50" fill="#451a03" fillOpacity="0.5" />
+
+          {/* Right trees */}
+          <ellipse cx="1220" cy="780" rx="120" ry="80" fill="#451a03" fillOpacity="0.7" />
+          <ellipse cx="1120" cy="800" rx="100" ry="60" fill="#78350f" fillOpacity="0.6" />
+          <ellipse cx="1040" cy="820" rx="80" ry="50" fill="#451a03" fillOpacity="0.5" />
+        </g>
+
+        {/* Layer 7: Magical sparkles and stars - clustered around spires */}
+        <g className="magic-sparkles" filter="url(#sparkleGlow)">
+          {/* Hero sparkle - above the main spire */}
+          <circle cx="600" cy="50" r="5" fill="#fff" className="sparkle sparkle-3" />
+
+          {/* Sparkles around main spire */}
+          <circle cx="580" cy="100" r="3" fill="#fef3c7" className="sparkle sparkle-1" />
+          <circle cx="625" cy="90" r="3.5" fill="#fef3c7" className="sparkle sparkle-2" />
+          <circle cx="565" cy="150" r="2.5" fill="#fde68a" className="sparkle sparkle-6" />
+          <circle cx="640" cy="140" r="2.5" fill="#fde68a" className="sparkle sparkle-7" />
+
+          {/* Sparkles near secondary spires */}
+          <circle cx="540" cy="220" r="3" fill="#fef3c7" className="sparkle sparkle-4" />
+          <circle cx="665" cy="240" r="3" fill="#fef3c7" className="sparkle sparkle-5" />
+
+          {/* Outer sparkles - framing the castle */}
+          <circle cx="480" cy="320" r="2.5" fill="#fde68a" className="sparkle sparkle-8" />
+          <circle cx="720" cy="300" r="2.5" fill="#fde68a" className="sparkle sparkle-9" />
+          <circle cx="400" cy="400" r="2" fill="#fef3c7" className="sparkle sparkle-10" />
+          <circle cx="800" cy="380" r="2" fill="#fef3c7" className="sparkle sparkle-11" />
+
+          {/* Distant sparkles */}
+          <circle cx="320" cy="280" r="2" fill="#fde68a" className="sparkle sparkle-12" />
+          <circle cx="880" cy="260" r="2" fill="#fde68a" className="sparkle sparkle-13" />
+
+          {/* Extra magic dust near flags */}
+          <circle cx="615" cy="30" r="1.5" fill="#fff" className="sparkle sparkle-1" />
+          <circle cx="560" cy="195" r="1.5" fill="#fef3c7" className="sparkle sparkle-4" />
+          <circle cx="650" cy="220" r="1.5" fill="#fef3c7" className="sparkle sparkle-5" />
+        </g>
+
+        {/* Layer 8: Floating dust/firefly particles */}
+        <g className="fireflies">
+          <circle cx="320" cy="450" r="1.5" fill="#fbbf24" className="firefly firefly-1" />
+          <circle cx="880" cy="430" r="1.5" fill="#fbbf24" className="firefly firefly-2" />
+          <circle cx="280" cy="550" r="1" fill="#f59e0b" className="firefly firefly-3" />
+          <circle cx="920" cy="530" r="1" fill="#f59e0b" className="firefly firefly-4" />
+          <circle cx="450" cy="500" r="1.2" fill="#fcd34d" className="firefly firefly-5" />
+          <circle cx="750" cy="480" r="1.2" fill="#fcd34d" className="firefly firefly-6" />
+        </g>
+      </svg>
+
+      {/* Noise texture overlay for vintage print feel */}
+      <div className="vintage-grain" />
+    </div>
+  );
+}
+
 function HeroSection() {
   return (
     <section className="hero">
       <div className="hero-background">
-        <div className="hero-grid" />
         <div className="hero-glow hero-glow-1" />
         <div className="hero-glow hero-glow-2" />
       </div>
+      <CastleSilhouette />
 
       <div className="hero-content">
         <div className="hero-badge">
