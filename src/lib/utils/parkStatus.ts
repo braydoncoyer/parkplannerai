@@ -109,6 +109,19 @@ export function getParkStatus(
   const opensAt = hours?.openingTimeFormatted || '9:00 AM';
   const closesAt = hours?.closingTimeFormatted || '9:00 PM';
 
+  // If no rides are reporting data, consider the park closed
+  // This handles cases where the API returns no ride data or all rides are closed
+  if (ridesOpen === 0) {
+    return {
+      isOpen: false,
+      isClosed: true,
+      currentTime: currentTime.formatted,
+      opensAt,
+      closesAt,
+      timezone,
+    };
+  }
+
   // If we have hours data, use time-based check
   if (hours) {
     const openTimeMinutes = hours.openHour * 60 + hours.openMinute;
@@ -138,21 +151,8 @@ export function getParkStatus(
     };
   }
 
-  // Fallback: if no hours data, check if rides are open
-  // (This should rarely happen since getParkHours() provides defaults)
-  if (ridesOpen === 0) {
-    return {
-      isOpen: false,
-      isClosed: true,
-      currentTime: currentTime.formatted,
-      opensAt,
-      closesAt,
-      timezone,
-    };
-  }
-
-  // No hours data but rides are open - assume park is open
-  // This is a conservative fallback that matches ride status
+  // Fallback: no hours data but rides are open - assume park is open
+  // (ridesOpen === 0 is already handled above, so we know rides are reporting data)
   return {
     isOpen: true,
     isClosed: false,

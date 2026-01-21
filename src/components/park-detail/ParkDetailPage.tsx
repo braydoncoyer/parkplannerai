@@ -30,6 +30,7 @@ import {
 import { useThemeColors, type ThemeColors } from '../../hooks/useThemeColors';
 import './ParkDetailPage.css';
 import parkImagesData from '../../lib/analytics/data/parkImages.json';
+import { CROWD_LABELS, getCrowdLevel } from '../../lib/constants/crowdLevels';
 
 // ============================================
 // Types
@@ -123,13 +124,6 @@ for (const resortParks of Object.values(parkImagesData)) {
 
 const DEFAULT_IMAGE = 'https://images.pexels.com/photos/8183994/pexels-photo-8183994.jpeg';
 
-const CROWD_LABELS: Record<string, string> = {
-  low: 'Low Crowds',
-  moderate: 'Moderate',
-  high: 'Busy',
-  'very-high': 'Very Busy',
-};
-
 const HEADLINER_RIDES = [
   'rise of the resistance', 'flight of passage', 'guardians of the galaxy',
   'tron', 'hagrid', 'velocicoaster', 'forbidden journey', 'hagrid\'s',
@@ -143,13 +137,6 @@ const HEADLINER_RIDES = [
 // ============================================
 // Helper Functions
 // ============================================
-
-function getCrowdLevel(avgWaitTime: number): 'low' | 'moderate' | 'high' | 'very-high' {
-  if (avgWaitTime < 20) return 'low';
-  if (avgWaitTime < 40) return 'moderate';
-  if (avgWaitTime < 60) return 'high';
-  return 'very-high';
-}
 
 function getWaitColor(waitTime: number): 'green' | 'amber' | 'orange' | 'red' {
   if (waitTime < 20) return 'green';

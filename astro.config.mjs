@@ -7,5 +7,10 @@ import vercel from '@astrojs/vercel';
 export default defineConfig({
   site: 'https://parkplannerai.com',
   integrations: [react()],
-  adapter: vercel()
+  adapter: vercel(),
+  vite: {
+    optimizeDeps: {
+      include: ['convex/react'],
+    },
+  },
 });

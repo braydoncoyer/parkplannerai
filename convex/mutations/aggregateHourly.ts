@@ -71,22 +71,68 @@ export const aggregateHourlyData = internalMutation({
 
     console.log(`[${new Date().toISOString()}] Starting hourly aggregation...`);
 
-    // Get all parks for timezone lookup
+    // Get all parks for timezone lookup and per-park processing
     const parks = await ctx.db.query("parks").collect();
     const parkTimezones = new Map<string, string>();
     for (const park of parks) {
       parkTimezones.set(park._id, park.timezone);
     }
 
-    // Get live wait times that need aggregation
-    const liveSnapshots = await ctx.db
-      .query("liveWaitTimes")
-      .withIndex("by_timestamp", (q) =>
-        q.gte("timestamp", oldestTime).lte("timestamp", cutoffTime)
-      )
-      .collect();
+    // Process data per park to avoid 32k document limit
+    // Instead of querying all liveWaitTimes at once, iterate per park
+    let totalSnapshotsProcessed = 0;
+    const aggregations = new Map<string, { key: AggregationKey; data: AggregationData }>();
 
-    if (liveSnapshots.length === 0) {
+    for (const park of parks) {
+      // Query liveWaitTimes for this park within the time window
+      const parkSnapshots = await ctx.db
+        .query("liveWaitTimes")
+        .withIndex("by_park_time", (q) =>
+          q.eq("parkId", park._id).gte("timestamp", oldestTime).lte("timestamp", cutoffTime)
+        )
+        .collect();
+
+      if (parkSnapshots.length === 0) continue;
+
+      totalSnapshotsProcessed += parkSnapshots.length;
+      const timezone = park.timezone || "America/New_York";
+
+      for (const snapshot of parkSnapshots) {
+        const { date, hour, dayOfWeek } = getLocalDateTime(snapshot.timestamp, timezone);
+
+        const aggregationKey = `${snapshot.rideId}-${date}-${hour}`;
+
+        if (!aggregations.has(aggregationKey)) {
+          aggregations.set(aggregationKey, {
+            key: {
+              rideId: snapshot.rideId,
+              parkId: snapshot.parkId,
+              landId: snapshot.landId,
+              date,
+              hour,
+              dayOfWeek,
+            },
+            data: {
+              waitTimes: [],
+              openCount: 0,
+              totalCount: 0,
+            },
+          });
+        }
+
+        const agg = aggregations.get(aggregationKey)!;
+        agg.data.totalCount++;
+
+        if (snapshot.isOpen) {
+          agg.data.openCount++;
+          if (snapshot.waitTimeMinutes !== undefined) {
+            agg.data.waitTimes.push(snapshot.waitTimeMinutes);
+          }
+        }
+      }
+    }
+
+    if (totalSnapshotsProcessed === 0) {
       console.log("No snapshots to aggregate");
       return {
         success: true,
@@ -97,46 +143,7 @@ export const aggregateHourlyData = internalMutation({
       };
     }
 
-    console.log(`Processing ${liveSnapshots.length} snapshots`);
-
-    // Group snapshots by ride + date + hour
-    const aggregations = new Map<string, { key: AggregationKey; data: AggregationData }>();
-
-    for (const snapshot of liveSnapshots) {
-      const timezone = parkTimezones.get(snapshot.parkId) || "America/New_York";
-      const { date, hour, dayOfWeek } = getLocalDateTime(snapshot.timestamp, timezone);
-
-      const aggregationKey = `${snapshot.rideId}-${date}-${hour}`;
-
-      if (!aggregations.has(aggregationKey)) {
-        aggregations.set(aggregationKey, {
-          key: {
-            rideId: snapshot.rideId,
-            parkId: snapshot.parkId,
-            landId: snapshot.landId,
-            date,
-            hour,
-            dayOfWeek,
-          },
-          data: {
-            waitTimes: [],
-            openCount: 0,
-            totalCount: 0,
-          },
-        });
-      }
-
-      const agg = aggregations.get(aggregationKey)!;
-      agg.data.totalCount++;
-
-      if (snapshot.isOpen) {
-        agg.data.openCount++;
-        if (snapshot.waitTimeMinutes !== undefined) {
-          agg.data.waitTimes.push(snapshot.waitTimeMinutes);
-        }
-      }
-    }
-
+    console.log(`Processing ${totalSnapshotsProcessed} snapshots from ${parks.length} parks`);
     console.log(`Found ${aggregations.size} unique ride-hour combinations`);
 
     // Process each aggregation
@@ -213,7 +220,7 @@ export const aggregateHourlyData = internalMutation({
       hoursProcessed: hoursProcessed.size,
       recordsCreated,
       recordsUpdated,
-      snapshotsProcessed: liveSnapshots.length,
+      snapshotsProcessed: totalSnapshotsProcessed,
     };
   },
 });

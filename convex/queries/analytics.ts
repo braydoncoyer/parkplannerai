@@ -48,7 +48,12 @@ export const getWeeklyPatterns = query({
       .withIndex("by_operator")
       .collect();
 
-    if (aggregates.length >= 7) {
+    // Check if we have complete data (all 7 days for at least Disney or Universal)
+    const disneyDays = new Set(aggregates.filter(a => a.operator === "Disney").map(a => a.dayOfWeek));
+    const universalDays = new Set(aggregates.filter(a => a.operator === "Universal").map(a => a.dayOfWeek));
+    const hasCompleteData = disneyDays.size === 7 || universalDays.size === 7;
+
+    if (hasCompleteData) {
       // Use pre-computed data
       const disneyByDay: Record<number, number> = {};
       const universalByDay: Record<number, number> = {};
@@ -84,13 +89,10 @@ export const getWeeklyPatterns = query({
       };
     }
 
-    // Fall back to real-time computation if aggregates not available
+    // Fall back to computing from hourlyRideWaits (new table)
     const weeks = args.weeks ?? 4;
-    const cutoffTime = Date.now() - weeks * 7 * 24 * 60 * 60 * 1000;
-
-    // Calculate start of today (UTC) to exclude partial day data
-    const now = new Date();
-    const startOfTodayUTC = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+    const cutoffDate = new Date(Date.now() - weeks * 7 * 24 * 60 * 60 * 1000);
+    const cutoffDateStr = cutoffDate.toISOString().split("T")[0];
 
     const parks = await ctx.db.query("parks").collect();
 
@@ -101,37 +103,37 @@ export const getWeeklyPatterns = query({
       parks.filter((p) => p.operator === "Universal").map((p) => p._id)
     );
 
-    const snapshots = await ctx.db
-      .query("waitTimeSnapshots")
-      .withIndex("by_timestamp", (q) => q.gte("timestamp", cutoffTime))
-      .take(25000);
-
+    // Use by_park_date index for efficient queries
     const disneyByDay: Record<number, number[]> = {};
     const universalByDay: Record<number, number[]> = {};
 
-    for (let i = 0; i < 7; i++) {
-      disneyByDay[i] = [];
-      universalByDay[i] = [];
-    }
+    for (const park of parks) {
+      const parkHourlyData = await ctx.db
+        .query("hourlyRideWaits")
+        .withIndex("by_park_date", (q) =>
+          q.eq("parkId", park._id).gte("date", cutoffDateStr)
+        )
+        .collect();
 
-    for (const snapshot of snapshots) {
-      // Exclude today's partial data to avoid skewing averages
-      if (!snapshot.isOpen || snapshot.waitTimeMinutes === undefined || snapshot.timestamp >= startOfTodayUTC) continue;
+      const targetMap = disneyParkIds.has(park._id) ? disneyByDay : universalByDay;
 
-      const dayOfWeek = new Date(snapshot.timestamp).getDay();
-
-      if (disneyParkIds.has(snapshot.parkId)) {
-        disneyByDay[dayOfWeek].push(snapshot.waitTimeMinutes);
-      } else if (universalParkIds.has(snapshot.parkId)) {
-        universalByDay[dayOfWeek].push(snapshot.waitTimeMinutes);
+      for (const entry of parkHourlyData) {
+        const dayOfWeek = entry.dayOfWeek;
+        if (!targetMap[dayOfWeek]) targetMap[dayOfWeek] = [];
+        targetMap[dayOfWeek].push(entry.avgWaitMinutes);
       }
     }
 
+    // Build weekly data from collected hourly data
     const weeklyData = [];
+    let totalDataPoints = 0;
+
     for (let i = 0; i < 7; i++) {
-      const dayIndex = (i + 1) % 7;
-      const disneyWaits = disneyByDay[dayIndex];
-      const universalWaits = universalByDay[dayIndex];
+      const dayIndex = (i + 1) % 7; // Start with Monday
+      const disneyWaits = disneyByDay[dayIndex] || [];
+      const universalWaits = universalByDay[dayIndex] || [];
+
+      totalDataPoints += disneyWaits.length + universalWaits.length;
 
       weeklyData.push({
         day: DAY_NAMES[dayIndex],
@@ -150,16 +152,12 @@ export const getWeeklyPatterns = query({
       });
     }
 
-    const totalDataPoints = snapshots.filter(
-      (s) => s.isOpen && s.waitTimeMinutes !== undefined
-    ).length;
-
     return {
       data: weeklyData,
       totalDataPoints,
       weeksOfData: weeks,
       hasEnoughData: totalDataPoints >= 100,
-      source: "realtime",
+      source: "hourlyRideWaits",
     };
   },
 });
@@ -640,26 +638,34 @@ export const getHistoricalTrend = query({
       parks.filter((p) => p.operator === "Universal").map((p) => p._id)
     );
 
-    // Try to use hourlyRideWaits first (pre-aggregated, much faster)
-    const hourlyData = await ctx.db
-      .query("hourlyRideWaits")
-      .filter((q) => q.gte(q.field("date"), cutoffDateStr))
-      .collect();
+    // Use by_park_date index for efficient queries (avoids full table scan)
+    // Query each park individually using the index, then combine results
+    const disneyByDate: Record<string, number[]> = {};
+    const universalByDate: Record<string, number[]> = {};
+    let hasHourlyData = false;
+    let totalSampleCount = 0;
 
-    if (hourlyData.length > 0) {
-      // Group by date and operator
-      const disneyByDate: Record<string, number[]> = {};
-      const universalByDate: Record<string, number[]> = {};
+    for (const park of parks) {
+      const parkHourlyData = await ctx.db
+        .query("hourlyRideWaits")
+        .withIndex("by_park_date", (q) =>
+          q.eq("parkId", park._id).gte("date", cutoffDateStr)
+        )
+        .collect();
 
-      for (const entry of hourlyData) {
-        if (disneyParkIds.has(entry.parkId)) {
-          if (!disneyByDate[entry.date]) disneyByDate[entry.date] = [];
-          disneyByDate[entry.date].push(entry.avgWaitMinutes);
-        } else if (universalParkIds.has(entry.parkId)) {
-          if (!universalByDate[entry.date]) universalByDate[entry.date] = [];
-          universalByDate[entry.date].push(entry.avgWaitMinutes);
+      if (parkHourlyData.length > 0) {
+        hasHourlyData = true;
+        const targetMap = disneyParkIds.has(park._id) ? disneyByDate : universalByDate;
+
+        for (const entry of parkHourlyData) {
+          if (!targetMap[entry.date]) targetMap[entry.date] = [];
+          targetMap[entry.date].push(entry.avgWaitMinutes);
+          totalSampleCount += entry.sampleCount;
         }
       }
+    }
+
+    if (hasHourlyData) {
 
       const allDates = new Set([
         ...Object.keys(disneyByDate),
@@ -691,11 +697,9 @@ export const getHistoricalTrend = query({
         };
       });
 
-      const totalDataPoints = hourlyData.reduce((sum, h) => sum + h.sampleCount, 0);
-
       return {
         data,
-        totalDataPoints,
+        totalDataPoints: totalSampleCount,
         daysOfData: sortedDates.length,
         hasEnoughData: sortedDates.length >= 3,
         source: "hourlyRideWaits",
@@ -709,8 +713,7 @@ export const getHistoricalTrend = query({
       .withIndex("by_timestamp", (q) => q.gte("timestamp", cutoffTime))
       .take(25000);
 
-    const disneyByDate: Record<string, number[]> = {};
-    const universalByDate: Record<string, number[]> = {};
+    // Reuse disneyByDate and universalByDate declared earlier
 
     for (const snapshot of snapshots) {
       if (!snapshot.isOpen || snapshot.waitTimeMinutes === undefined) continue;
@@ -773,51 +776,79 @@ export const getHistoricalTrend = query({
 export const getDataCollectionStatus = query({
   args: {},
   handler: async (ctx) => {
-    // Get overall stats
+    // Get overall stats (these tables are small)
     const parks = await ctx.db.query("parks").collect();
     const rides = await ctx.db.query("rides").collect();
 
-    // Try to use new tables first
-    const hourlyData = await ctx.db.query("hourlyRideWaits").collect();
-    const liveData = await ctx.db.query("liveWaitTimes").collect();
+    // Use efficient indexed queries instead of .collect() to avoid document limits
+    // Get oldest and newest hourly data using indexed queries
+    const oldestHourly = await ctx.db
+      .query("hourlyRideWaits")
+      .order("asc")
+      .first();
+    const newestHourly = await ctx.db
+      .query("hourlyRideWaits")
+      .order("desc")
+      .first();
 
-    if (hourlyData.length > 0 || liveData.length > 0) {
-      // Calculate unique days from both new tables
-      const uniqueDays = new Set<string>();
-      for (const entry of hourlyData) {
-        uniqueDays.add(entry.date);
-      }
-      for (const entry of liveData) {
-        uniqueDays.add(new Date(entry.timestamp).toISOString().split("T")[0]);
-      }
+    // Get oldest and newest live data using timestamp index
+    const oldestLive = await ctx.db
+      .query("liveWaitTimes")
+      .withIndex("by_timestamp")
+      .order("asc")
+      .first();
+    const newestLive = await ctx.db
+      .query("liveWaitTimes")
+      .withIndex("by_timestamp")
+      .order("desc")
+      .first();
 
-      // Find oldest and newest dates
-      const hourlyDates = hourlyData.map((h) => h.date).sort();
-      const liveDates = liveData
-        .map((l) => new Date(l.timestamp).toISOString().split("T")[0])
-        .sort();
+    const hasHourlyData = oldestHourly !== null;
+    const hasLiveData = oldestLive !== null;
 
+    if (hasHourlyData || hasLiveData) {
+      // Determine oldest and newest dates
       let oldestDate: string | null = null;
       let newestDate: string | null = null;
 
-      if (hourlyDates.length > 0) {
-        oldestDate = hourlyDates[0];
-        newestDate = hourlyDates[hourlyDates.length - 1];
+      if (hasHourlyData && oldestHourly && newestHourly) {
+        oldestDate = oldestHourly.date;
+        newestDate = newestHourly.date;
       }
-      if (liveDates.length > 0) {
-        if (!oldestDate || liveDates[0] < oldestDate) {
-          oldestDate = liveDates[0];
+
+      if (hasLiveData && oldestLive && newestLive) {
+        const oldestLiveDate = new Date(oldestLive.timestamp).toISOString().split("T")[0];
+        const newestLiveDate = new Date(newestLive.timestamp).toISOString().split("T")[0];
+
+        if (!oldestDate || oldestLiveDate < oldestDate) {
+          oldestDate = oldestLiveDate;
         }
-        if (!newestDate || liveDates[liveDates.length - 1] > newestDate) {
-          newestDate = liveDates[liveDates.length - 1];
+        if (!newestDate || newestLiveDate > newestDate) {
+          newestDate = newestLiveDate;
         }
       }
 
-      // Estimate total snapshots
-      const estimatedSnapshots =
-        hourlyData.reduce((sum, h) => sum + h.sampleCount, 0) + liveData.length;
+      // Calculate days of data from date range
+      let daysOfData = 0;
+      if (oldestDate && newestDate) {
+        const oldest = new Date(oldestDate);
+        const newest = new Date(newestDate);
+        daysOfData = Math.floor((newest.getTime() - oldest.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+      }
 
-      const daysOfData = uniqueDays.size;
+      // Estimate total snapshots based on:
+      // - Hourly data: ~rides * days * hours_per_day (assume 14 operating hours)
+      // - Live data: sampled count * multiplier
+      // This is an approximation to avoid scanning all documents
+      const hourlyEstimate = hasHourlyData ? rides.length * daysOfData * 14 : 0;
+      const liveDataSample = await ctx.db
+        .query("liveWaitTimes")
+        .withIndex("by_timestamp")
+        .order("desc")
+        .take(100);
+      const liveEstimate = liveDataSample.length > 0 ? liveDataSample.length * 10 : 0; // Rough estimate
+
+      const estimatedSnapshots = hourlyEstimate + liveEstimate;
 
       const milestones = {
         oneWeek: daysOfData >= 7,
@@ -1028,36 +1059,47 @@ export const getLandComparison = query({
       return short;
     };
 
-    // Try to use hourlyRideWaits first
-    const hourlyData = await ctx.db
-      .query("hourlyRideWaits")
-      .filter((q) =>
-        q.and(
-          q.gte(q.field("date"), cutoffDateStr),
-          q.neq(q.field("landId"), undefined)
-        )
-      )
-      .collect();
+    // Use by_park_date index for efficient queries (avoids full table scan)
+    // Query each park individually using the index, then filter by land in memory
+    const relevantHourly: Array<{
+      landId: string;
+      avgWaitMinutes: number;
+      sampleCount: number;
+    }> = [];
 
-    // Filter to relevant parks and lands - use string comparison for reliability
-    const relevantHourly = hourlyData.filter(
-      (h) => parkIdStrings.has(String(h.parkId)) && h.landId && landIdStrings.has(String(h.landId))
-    );
+    for (const parkIdStr of parkIdStrings) {
+      const parkHourlyData = await ctx.db
+        .query("hourlyRideWaits")
+        .withIndex("by_park_date", (q) =>
+          q.eq("parkId", parkIdStr as any).gte("date", cutoffDateStr)
+        )
+        .collect();
+
+      // Filter to entries with landIds that match our relevant lands
+      for (const entry of parkHourlyData) {
+        if (entry.landId && landIdStrings.has(String(entry.landId))) {
+          relevantHourly.push({
+            landId: String(entry.landId),
+            avgWaitMinutes: entry.avgWaitMinutes,
+            sampleCount: entry.sampleCount,
+          });
+        }
+      }
+    }
 
     if (relevantHourly.length > 0) {
       // Group by land
       const landWaits: Record<string, { name: string; waits: number[]; samples: number }> = {};
 
       for (const entry of relevantHourly) {
-        const landIdStr = String(entry.landId!);
-        const land = landMap.get(landIdStr);
+        const land = landMap.get(entry.landId);
         if (!land) continue;
 
-        if (!landWaits[landIdStr]) {
-          landWaits[landIdStr] = { name: land.name, waits: [], samples: 0 };
+        if (!landWaits[entry.landId]) {
+          landWaits[entry.landId] = { name: land.name, waits: [], samples: 0 };
         }
-        landWaits[landIdStr].waits.push(entry.avgWaitMinutes);
-        landWaits[landIdStr].samples += entry.sampleCount;
+        landWaits[entry.landId].waits.push(entry.avgWaitMinutes);
+        landWaits[entry.landId].samples += entry.sampleCount;
       }
 
       const allData = Object.entries(landWaits)
