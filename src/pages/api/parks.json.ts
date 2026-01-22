@@ -2,6 +2,8 @@ import type { APIRoute } from 'astro';
 import { getParkHours, getDefaultParkHours, PARK_TIMEZONES, type ParkHours } from '../../lib/api/parkHours';
 import { isParkCurrentlyOpen } from '../../lib/utils/parkStatus';
 
+export const prerender = false;
+
 const QUEUE_TIMES_BASE_URL = 'https://queue-times.com';
 
 // Timeout wrapper for fetch calls to prevent hanging
