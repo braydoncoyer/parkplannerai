@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { getRideMinHeight, formatHeight, meetsHeightRequirement } from '../../lib/analytics/data/rideMetadata';
 import './RideList.css';
 
 interface Ride {
@@ -9,6 +10,7 @@ interface Ride {
   waitTime: number | null;
   lastUpdated: string;
   status: 'open' | 'closed' | 'down';
+  minHeight?: number; // Height requirement in inches
 }
 
 interface ParkData {
@@ -56,15 +58,27 @@ function getWaitTimeColor(waitTime: number): string {
   return '#f43f5e';
 }
 
-function RideCard({ ride }: { ride: Ride }) {
+function RideCard({ ride, childHeight }: { ride: Ride; childHeight: number | null }) {
   const statusConfig = STATUS_CONFIG[ride.status];
+  const minHeight = getRideMinHeight(ride.name);
+  const meetsHeight = childHeight === null || minHeight === undefined || meetsHeightRequirement(ride.name, childHeight);
 
   return (
-    <div className={`ride-card ${ride.status}`}>
+    <div className={`ride-card ${ride.status} ${!meetsHeight ? 'height-restricted' : ''}`}>
       <div className="ride-main">
         <div className="ride-info">
           <h4 className="ride-name">{ride.name}</h4>
-          <span className="ride-land">{ride.land}</span>
+          <div className="ride-meta">
+            <span className="ride-land">{ride.land}</span>
+            {minHeight !== undefined && (
+              <span className={`ride-height ${!meetsHeight ? 'not-met' : 'met'}`}>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M12 2v20M2 12h4m12 0h4M7 7l-2-2m14 2l2-2M7 17l-2 2m14-2l2 2"/>
+                </svg>
+                {formatHeight(minHeight)}
+              </span>
+            )}
+          </div>
         </div>
 
         {ride.status === 'open' && ride.waitTime !== null ? (
@@ -84,6 +98,9 @@ function RideCard({ ride }: { ride: Ride }) {
 
       <div className="ride-footer">
         <span className="ride-updated">Updated {formatTimeAgo(ride.lastUpdated)}</span>
+        {!meetsHeight && childHeight !== null && (
+          <span className="height-warning">Below height requirement</span>
+        )}
       </div>
     </div>
   );
@@ -112,6 +129,20 @@ function StatsBar({ stats }: { stats: ParkData['stats'] }) {
   );
 }
 
+// Common child height presets in inches
+const HEIGHT_PRESETS = [
+  { label: 'Any Height', value: null },
+  { label: '32" (Toddler)', value: 32 },
+  { label: '36" (3-4 yrs)', value: 36 },
+  { label: '38" (4-5 yrs)', value: 38 },
+  { label: '40" (5-6 yrs)', value: 40 },
+  { label: '42" (6-7 yrs)', value: 42 },
+  { label: '44" (7-8 yrs)', value: 44 },
+  { label: '48" (8-10 yrs)', value: 48 },
+  { label: '51" (10-12 yrs)', value: 51 },
+  { label: '54"+ (Teen/Adult)', value: 54 },
+];
+
 function FilterBar({
   filter,
   setFilter,
@@ -122,6 +153,10 @@ function FilterBar({
   lands,
   selectedLand,
   setSelectedLand,
+  childHeight,
+  setChildHeight,
+  showHeightRestricted,
+  setShowHeightRestricted,
 }: {
   filter: FilterOption;
   setFilter: (f: FilterOption) => void;
@@ -132,6 +167,10 @@ function FilterBar({
   lands: { name: string; rideCount: number }[];
   selectedLand: string;
   setSelectedLand: (l: string) => void;
+  childHeight: number | null;
+  setChildHeight: (h: number | null) => void;
+  showHeightRestricted: boolean;
+  setShowHeightRestricted: (show: boolean) => void;
 }) {
   return (
     <div className="filter-bar">
@@ -185,6 +224,37 @@ function FilterBar({
         </div>
       </div>
 
+      {/* Height Filter Row */}
+      <div className="height-filter-row">
+        <div className="height-filter-label">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M12 2v20M2 12h4m12 0h4M7 7l-2-2m14 2l2-2M7 17l-2 2m14-2l2 2"/>
+          </svg>
+          <span>Child's Height:</span>
+        </div>
+        <select
+          value={childHeight === null ? '' : childHeight}
+          onChange={(e) => setChildHeight(e.target.value === '' ? null : parseInt(e.target.value))}
+          className="filter-select height-select"
+        >
+          {HEIGHT_PRESETS.map((preset) => (
+            <option key={preset.label} value={preset.value === null ? '' : preset.value}>
+              {preset.label}
+            </option>
+          ))}
+        </select>
+        {childHeight !== null && (
+          <label className="show-restricted-toggle">
+            <input
+              type="checkbox"
+              checked={showHeightRestricted}
+              onChange={(e) => setShowHeightRestricted(e.target.checked)}
+            />
+            <span>Show rides below requirement</span>
+          </label>
+        )}
+      </div>
+
       <div className="filter-tabs">
         {(['all', 'open', 'closed'] as FilterOption[]).map((f) => (
           <button
@@ -232,6 +302,8 @@ export default function RideList({ parkId, parkName }: { parkId: string; parkNam
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedLand, setSelectedLand] = useState('all');
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
+  const [childHeight, setChildHeight] = useState<number | null>(null);
+  const [showHeightRestricted, setShowHeightRestricted] = useState(true);
 
   const fetchData = async () => {
     try {
@@ -281,6 +353,11 @@ export default function RideList({ parkId, parkName }: { parkId: string; parkNam
       );
     }
 
+    // Filter by height requirement
+    if (childHeight !== null && !showHeightRestricted) {
+      rides = rides.filter((r) => meetsHeightRequirement(r.name, childHeight));
+    }
+
     // Sort
     switch (sort) {
       case 'wait-desc':
@@ -306,7 +383,7 @@ export default function RideList({ parkId, parkName }: { parkId: string; parkNam
     }
 
     return rides;
-  }, [data, filter, sort, searchQuery, selectedLand]);
+  }, [data, filter, sort, searchQuery, selectedLand, childHeight, showHeightRestricted]);
 
   if (loading) return <LoadingSkeleton />;
 
@@ -350,6 +427,10 @@ export default function RideList({ parkId, parkName }: { parkId: string; parkNam
         lands={data.lands}
         selectedLand={selectedLand}
         setSelectedLand={setSelectedLand}
+        childHeight={childHeight}
+        setChildHeight={setChildHeight}
+        showHeightRestricted={showHeightRestricted}
+        setShowHeightRestricted={setShowHeightRestricted}
       />
 
       {/* Results count */}
@@ -365,7 +446,7 @@ export default function RideList({ parkId, parkName }: { parkId: string; parkNam
             className="ride-card-wrapper"
             style={{ animationDelay: `${index * 30}ms` }}
           >
-            <RideCard ride={ride} />
+            <RideCard ride={ride} childHeight={childHeight} />
           </div>
         ))}
       </div>

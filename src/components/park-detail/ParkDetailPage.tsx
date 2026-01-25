@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { supportsParkHopper } from '../../lib/analytics/data/resortPairings';
 import { getParkStatus } from '../../lib/utils/parkStatus';
+import { getRideMinHeight, formatHeight } from '../../lib/analytics/data/rideMetadata';
 import {
   LineChart,
   Line,
@@ -31,6 +32,7 @@ import { useThemeColors, type ThemeColors } from '../../hooks/useThemeColors';
 import './ParkDetailPage.css';
 import parkImagesData from '../../lib/analytics/data/parkImages.json';
 import { CROWD_LABELS, getCrowdLevel } from '../../lib/constants/crowdLevels';
+import WeatherDisplay from './WeatherDisplay';
 
 // ============================================
 // Types
@@ -722,6 +724,7 @@ function EntertainmentHighlights({
 function RideCard({ ride }: { ride: RideWithLand }) {
   const headliner = isHeadliner(ride.name);
   const waitColor = ride.waitTime !== null ? getWaitColor(ride.waitTime) : null;
+  const minHeight = getRideMinHeight(ride.name);
 
   return (
     <div className="pd-ride-card">
@@ -735,6 +738,14 @@ function RideCard({ ride }: { ride: RideWithLand }) {
             </span>
           )}
         </h4>
+        {minHeight !== undefined && (
+          <span className="pd-ride-height">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M12 2v20M2 12h4m12 0h4"/>
+            </svg>
+            {formatHeight(minHeight)}
+          </span>
+        )}
       </div>
 
       {ride.status === 'open' && ride.waitTime !== null ? (
@@ -1098,6 +1109,13 @@ export default function ParkDetailPage({
           hours={hours}
           crowdLevel={crowdLevel}
         />
+
+        <div className="pd-weather-section">
+          <WeatherDisplay
+            parkId={Number(parkId)}
+            parkName={parkName}
+          />
+        </div>
 
         <CrowdTimeline historicalData={historicalData} colors={colors} />
 

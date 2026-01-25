@@ -33,6 +33,7 @@ import {
   Flame,
   Droplets,
   Flag,
+  Compass,
 } from 'lucide-react';
 import './PlanWizard.css';
 import {
@@ -54,6 +55,7 @@ import {
 } from '../../lib/analytics/data/landActivities';
 import { getWalkTimeBetweenLands } from '../../lib/analytics/optimization/rideOrderer';
 import { getRideWeight, type RideCategory as WeightCategory } from '../../lib/analytics/data/rideWeights';
+import { getRideMinHeight, formatHeight, meetsHeightRequirement } from '../../lib/analytics/data/rideMetadata';
 import headlinerImages from '../../lib/analytics/data/headlinerImages.json';
 import parkImagesData from '../../lib/analytics/data/parkImages.json';
 import {
@@ -77,6 +79,12 @@ import {
 } from '../../lib/analytics/optimization/strategyGenerator';
 import StrategyComparison from './StrategyComparison';
 import RopeDropTargetSelector, { type RopeDropTarget } from './RopeDropTargetSelector';
+import TemplateSelector from './TemplateSelector';
+import SharePlan from './SharePlan';
+import {
+  getTemplateById,
+  type ItineraryTemplate,
+} from '../../lib/analytics/data/prebuiltItineraries';
 import {
   getResortForPark,
   getOtherParksInResort,
@@ -144,6 +152,41 @@ function getHeadlinerImage(rideName: string): string {
   }
 
   return DEFAULT_HEADLINER_IMAGE;
+}
+
+/**
+ * Match a template ride name to an actual ride in the rides list
+ * Uses fuzzy matching similar to getHeadlinerImage
+ * Returns the ride ID if found, null otherwise
+ */
+function matchTemplateRideToActualRide(templateRideName: string, rides: { id: number; name: string }[]): number | null {
+  const normalizedTemplateName = normalizeRideName(templateRideName);
+
+  for (const ride of rides) {
+    const normalizedRideName = normalizeRideName(ride.name);
+
+    // Exact match
+    if (normalizedRideName === normalizedTemplateName) {
+      return ride.id;
+    }
+
+    // Partial match (one contains the other)
+    if (normalizedRideName.includes(normalizedTemplateName) || normalizedTemplateName.includes(normalizedRideName)) {
+      return ride.id;
+    }
+
+    // Word-based matching for multi-word names
+    const templateWords = normalizedTemplateName.split(/\s+/).filter(w => w.length > 2 && !['the', 'and', 'of', 'a'].includes(w));
+    const rideWords = normalizedRideName.split(/\s+/).filter(w => w.length > 2 && !['the', 'and', 'of', 'a'].includes(w));
+    const matchingWords = templateWords.filter(tw => rideWords.some(rw => rw.includes(tw) || tw.includes(rw)));
+
+    // Match if most significant words match
+    if (matchingWords.length >= Math.min(2, templateWords.length) && matchingWords.length >= templateWords.length * 0.6) {
+      return ride.id;
+    }
+  }
+
+  return null;
 }
 
 // ============================================================================
@@ -252,19 +295,33 @@ interface SavedPlan {
 
 type Step = 'park' | 'ticket-type' | 'strategy' | 'dates' | 'day-config' | 'entertainment' | 'rides' | 'report';
 
+// Wizard mode: template flow has fewer steps, custom flow has all steps
+type WizardMode = 'template' | 'custom' | null;
+
 // ============================================================================
 // CONSTANTS
 // ============================================================================
 
-const STEPS: { key: Step; label: string; icon: React.ReactNode }[] = [
+// All possible steps with their display info
+const ALL_STEPS: { key: Step; label: string; icon: React.ReactNode }[] = [
   { key: 'park', label: 'Select Park', icon: <MapPin size={18} /> },
   { key: 'ticket-type', label: 'Ticket Type', icon: <Route size={18} /> },
   { key: 'strategy', label: 'Compare Strategies', icon: <Lightbulb size={18} /> },
   { key: 'dates', label: 'Choose Dates', icon: <Calendar size={18} /> },
+  { key: 'day-config', label: 'Configure Days', icon: <Calendar size={18} /> },
   { key: 'entertainment', label: 'Shows', icon: <Sparkles size={18} /> },
   { key: 'rides', label: 'Select Rides', icon: <Star size={18} /> },
   { key: 'report', label: 'Your Plan', icon: <Award size={18} /> },
 ];
+
+// Template mode: simplified flow (templates already have park, strategy, ride preferences)
+const TEMPLATE_MODE_STEPS: Step[] = ['park', 'dates', 'entertainment', 'rides', 'report'];
+
+// Custom mode: full flow (may skip some steps based on park capabilities)
+const CUSTOM_MODE_STEPS: Step[] = ['park', 'ticket-type', 'strategy', 'dates', 'day-config', 'entertainment', 'rides', 'report'];
+
+// Legacy: for backward compatibility when mode is not set
+const STEPS = ALL_STEPS.filter(s => !['day-config'].includes(s.key));
 
 /**
  * Derive schedule preferences from selected strategy
@@ -446,17 +503,23 @@ function getMonthDays(year: number, month: number): Date[] {
 // STEP INDICATOR
 // ============================================================================
 
-function StepIndicator({ currentStep }: { currentStep: Step }) {
-  const currentIndex = STEPS.findIndex((s) => s.key === currentStep);
-  const totalSteps = STEPS.length;
+interface StepIndicatorProps {
+  currentStep: Step;
+  activeSteps: Step[];
+  wizardMode: WizardMode;
+}
+
+function StepIndicator({ currentStep, activeSteps, wizardMode }: StepIndicatorProps) {
+  // Filter ALL_STEPS to only show the active steps for this mode
+  const displaySteps = ALL_STEPS.filter(s => activeSteps.includes(s.key));
+  const currentIndex = displaySteps.findIndex((s) => s.key === currentStep);
+  const totalSteps = displaySteps.length;
 
   // Progress is calculated as segments completed
-  // For 7 steps, there are 6 segments between them
-  // currentIndex 0 = 0%, currentIndex 1 = 16.67%, currentIndex 6 = 100%
   const progressPercent = totalSteps > 1 ? (currentIndex / (totalSteps - 1)) * 100 : 0;
 
   return (
-    <div className="pw-stepper">
+    <div className={`pw-stepper ${wizardMode === 'template' ? 'pw-stepper--template' : ''}`}>
       {/* Background line - spans full width behind circles */}
       <div className="pw-stepper-track">
         <div
@@ -467,7 +530,7 @@ function StepIndicator({ currentStep }: { currentStep: Step }) {
 
       {/* Step circles - evenly distributed */}
       <div className="pw-stepper-steps">
-        {STEPS.map((step, index) => {
+        {displaySteps.map((step, index) => {
           const isCompleted = index < currentIndex;
           const isActive = index === currentIndex;
 
@@ -1760,6 +1823,21 @@ function RideSelection({
 }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
+  const [childHeight, setChildHeight] = useState<number | null>(null);
+
+  // Height presets for filtering
+  const HEIGHT_PRESETS = [
+    { label: 'Any Height', value: null },
+    { label: '32" (Toddler)', value: 32 },
+    { label: '36" (3-4 yrs)', value: 36 },
+    { label: '38" (4-5 yrs)', value: 38 },
+    { label: '40" (5-6 yrs)', value: 40 },
+    { label: '42" (6-7 yrs)', value: 42 },
+    { label: '44" (7-8 yrs)', value: 44 },
+    { label: '48" (8-10 yrs)', value: 48 },
+    { label: '51" (10-12 yrs)', value: 51 },
+    { label: '54"+ (Teen/Adult)', value: 54 },
+  ];
 
   // Helper to check if a ride is a rope drop target
   const isRopeDropTarget = (rideName: string): boolean => {
@@ -1790,9 +1868,13 @@ function RideSelection({
 
   const filteredRidesByLand = Object.entries(ridesByLand).reduce(
     (acc, [land, landRides]) => {
-      const filtered = landRides.filter((ride) =>
-        ride.name.toLowerCase().includes(searchTerm.toLowerCase())
-      );
+      const filtered = landRides.filter((ride) => {
+        // Filter by search term
+        const matchesSearch = ride.name.toLowerCase().includes(searchTerm.toLowerCase());
+        // Filter by height requirement
+        const matchesHeight = childHeight === null || meetsHeightRequirement(ride.name, childHeight);
+        return matchesSearch && matchesHeight;
+      });
       if (filtered.length > 0) acc[land] = filtered;
       return acc;
     },
@@ -1827,13 +1909,34 @@ function RideSelection({
 
       <div className="pw-rides-layout">
         <div className="pw-rides-main">
-          <div className="pw-rides-search">
-            <input
-              type="text"
-              placeholder="Search attractions..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
+          <div className="pw-rides-filters">
+            <div className="pw-rides-search">
+              <input
+                type="text"
+                placeholder="Search attractions..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+            <div className="pw-height-filter">
+              <label className="pw-height-filter-label">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M12 2v20M2 12h4m12 0h4"/>
+                </svg>
+                Child's Height:
+              </label>
+              <select
+                value={childHeight === null ? '' : childHeight}
+                onChange={(e) => setChildHeight(e.target.value === '' ? null : parseInt(e.target.value))}
+                className="pw-height-select"
+              >
+                {HEIGHT_PRESETS.map((preset) => (
+                  <option key={preset.label} value={preset.value === null ? '' : preset.value}>
+                    {preset.label}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
           <div className="pw-rides-list">
@@ -1873,6 +1976,7 @@ function RideSelection({
                     {landRides.map((ride) => {
                       const isSelected = selectedRides.includes(ride.id);
                       const isRopeDrop = isRopeDropTarget(ride.name);
+                      const minHeight = getRideMinHeight(ride.name);
                       return (
                         <button
                           key={ride.id}
@@ -1885,6 +1989,11 @@ function RideSelection({
                               <span className="pw-rope-drop-badge">
                                 <Target size={10} />
                                 Rope Drop
+                              </span>
+                            )}
+                            {minHeight !== undefined && (
+                              <span className="pw-ride-height-badge">
+                                {formatHeight(minHeight)}
                               </span>
                             )}
                           </span>
@@ -2692,6 +2801,16 @@ export default function PlanWizard() {
   // Strategy selection
   const [selectedStrategy, setSelectedStrategy] = useState<string | null>(null);
 
+  // Template and sharing state
+  const [showTemplates, setShowTemplates] = useState(true); // Show template selector on park step
+  const [selectedTemplate, setSelectedTemplate] = useState<ItineraryTemplate | null>(null);
+  const [showShareModal, setShowShareModal] = useState(false);
+
+  // Wizard mode: determines which steps are shown
+  // 'template' = simplified flow (park → dates → entertainment → rides → report)
+  // 'custom' = full flow (park → ticket-type → strategy → dates → [day-config] → entertainment → rides → report)
+  const [wizardMode, setWizardMode] = useState<WizardMode>(null);
+
   // Derive allowRerides and priority from selected strategy
   useEffect(() => {
     const { allowRerides: derivedAllowRerides, priority: derivedPriority } = getPreferencesFromStrategy(selectedStrategy);
@@ -2890,6 +3009,33 @@ export default function PlanWizard() {
       return total + Math.floor(ridesForDay * multiplier);
     }, 0);
   }, [selectedDates, isParkHopper]);
+
+  // Auto-select rides when a template is selected and rides are loaded
+  useEffect(() => {
+    if (selectedTemplate && rides.length > 0) {
+      // Match template ride names to actual ride IDs
+      const matchedRideIds: number[] = [];
+
+      // First, match must-do rides
+      for (const rideName of selectedTemplate.mustDoRides) {
+        const rideId = matchTemplateRideToActualRide(rideName, rides);
+        if (rideId !== null && !matchedRideIds.includes(rideId)) {
+          matchedRideIds.push(rideId);
+        }
+      }
+
+      // Then, match optional rides
+      for (const rideName of selectedTemplate.optionalRides) {
+        const rideId = matchTemplateRideToActualRide(rideName, rides);
+        if (rideId !== null && !matchedRideIds.includes(rideId)) {
+          matchedRideIds.push(rideId);
+        }
+      }
+
+      // Set the selected rides (respecting the max limit)
+      setSelectedRides(matchedRideIds.slice(0, maxRideLimit));
+    }
+  }, [selectedTemplate, rides, maxRideLimit]);
 
   const isAtRideLimit = selectedRides.length >= maxRideLimit;
   const isNearRideLimit = selectedRides.length >= maxRideLimit - 2;
@@ -5161,7 +5307,54 @@ export default function PlanWizard() {
     setIsSaved(false);
     setPreferences({ priority: 'balanced', includeBreaks: true });
     setSelectedStrategy(null);
+    setSelectedTemplate(null);
+    setShowTemplates(true);
+    setWizardMode(null);
+    setIsParkHopper(false);
+    setSecondParkId(null);
+    setWantFireworks(false);
+    setWantParade(false);
   };
+
+  // Compute the active steps based on wizard mode and current state
+  // This determines which steps are shown in the stepper and used for navigation
+  const getActiveSteps = (): Step[] => {
+    if (wizardMode === 'template') {
+      // Template mode: simplified flow
+      // Skip day-config since templates don't support park hopper
+      return TEMPLATE_MODE_STEPS.filter(s => s !== 'day-config');
+    }
+
+    if (wizardMode === 'custom') {
+      // Custom mode: include all applicable steps based on park capabilities
+      let steps: Step[] = ['park'];
+
+      // Only add ticket-type if park supports park hopper
+      if (selectedPark && supportsParkHopper(selectedPark)) {
+        steps.push('ticket-type');
+      }
+
+      // Only add strategy if park has strategy support
+      if (selectedPark && hasStrategySupport(selectedPark)) {
+        steps.push('strategy');
+      }
+
+      steps.push('dates');
+
+      // Only add day-config if park hopper with multiple days
+      if (isParkHopper && selectedDates.length > 1) {
+        steps.push('day-config');
+      }
+
+      steps.push('entertainment', 'rides', 'report');
+      return steps;
+    }
+
+    // Fallback: show minimal steps when mode not yet set
+    return ['park'];
+  };
+
+  const activeSteps = getActiveSteps();
 
   const canProceed = () => {
     switch (step) {
@@ -5192,49 +5385,31 @@ export default function PlanWizard() {
     }
   };
 
+  // Navigate to the next step in the active steps sequence
   const nextStep = () => {
+    const currentIndex = activeSteps.indexOf(step);
+
     if (step === 'park') {
       // Park selection auto-advances via onSelect callback
       return;
     }
-    else if (step === 'ticket-type') {
-      // Go to strategy step if park has strategy support, otherwise dates
-      if (selectedPark && hasStrategySupport(selectedPark)) {
-        setStep('strategy');
-      } else {
-        setStep('dates');
-      }
+
+    // Special handling for day-config initialization in custom mode
+    if (step === 'dates' && wizardMode === 'custom' && isParkHopper && selectedDates.length > 1) {
+      // Initialize per-day hopper settings before navigating to day-config
+      const otherParks = selectedPark ? getOtherParksInResort(selectedPark) : [];
+      const defaultSecondPark = otherParks.length > 0 ? otherParks[0].id : undefined;
+      setSelectedDates(prev => prev.map(sd => ({
+        ...sd,
+        isHopperDay: sd.isHopperDay ?? true,
+        startingParkId: sd.startingParkId ?? selectedPark ?? undefined,
+        secondParkId: sd.secondParkId ?? defaultSecondPark,
+        transitionTime: sd.transitionTime ?? '2:00 PM',
+      })));
     }
-    else if (step === 'strategy') {
-      setStep('dates');
-    }
-    else if (step === 'dates') {
-      // If park hopper with multiple days, show day configuration step
-      if (isParkHopper && selectedDates.length > 1) {
-        // Initialize per-day hopper settings before navigating to day-config
-        // This ensures validation passes immediately
-        const otherParks = selectedPark ? getOtherParksInResort(selectedPark) : [];
-        const defaultSecondPark = otherParks.length > 0 ? otherParks[0].id : undefined;
-        setSelectedDates(prev => prev.map(sd => ({
-          ...sd,
-          isHopperDay: sd.isHopperDay ?? true,
-          startingParkId: sd.startingParkId ?? selectedPark ?? undefined,
-          secondParkId: sd.secondParkId ?? defaultSecondPark,
-          transitionTime: sd.transitionTime ?? '2:00 PM',
-        })));
-        setStep('day-config');
-      } else {
-        // Move to entertainment step
-        setStep('entertainment');
-      }
-    }
-    else if (step === 'day-config') {
-      // After day config, move to entertainment
-      setStep('entertainment');
-    }
-    else if (step === 'entertainment') {
-      // Auto-select rope drop target rides when moving to ride selection
-      // This includes both individual rope drop targets AND strategy rides
+
+    // Special handling for auto-selecting rides when moving from entertainment to rides
+    if (step === 'entertainment') {
       const targetRideNames: string[] = [];
 
       // Add individual rope drop targets (from dates without strategy)
@@ -5249,6 +5424,23 @@ export default function PlanWizard() {
         targetRideNames.push(...strategyRides.map(name => name.toLowerCase()));
       }
 
+      // For template mode, auto-select template rides
+      if (wizardMode === 'template' && selectedTemplate && selectedTemplate.mustDoRides) {
+        const templateRideIds = selectedTemplate.mustDoRides
+          .map(rideName => matchTemplateRideToActualRide(rideName, rides))
+          .filter((id): id is number => id !== null);
+
+        if (templateRideIds.length > 0) {
+          const newSelectedRides = [...selectedRides];
+          for (const rideId of templateRideIds) {
+            if (!newSelectedRides.includes(rideId)) {
+              newSelectedRides.push(rideId);
+            }
+          }
+          setSelectedRides(newSelectedRides);
+        }
+      }
+
       if (targetRideNames.length > 0) {
         const ridesMatchingTargets = rides.filter(ride => {
           const rideName = ride.name.toLowerCase();
@@ -5259,7 +5451,6 @@ export default function PlanWizard() {
           );
         });
 
-        // Add matching ride IDs to selection (avoid duplicates)
         const newSelectedRides = [...selectedRides];
         for (const ride of ridesMatchingTargets) {
           if (!newSelectedRides.includes(ride.id)) {
@@ -5268,43 +5459,45 @@ export default function PlanWizard() {
         }
         setSelectedRides(newSelectedRides);
       }
-
-      setStep('rides');
     }
-    else if (step === 'rides') generateReport();
+
+    // Move to the next step in the active sequence
+    if (step === 'rides') {
+      generateReport();
+    } else if (currentIndex >= 0 && currentIndex < activeSteps.length - 1) {
+      setStep(activeSteps[currentIndex + 1]);
+    }
   };
 
+  // Navigate to the previous step in the active steps sequence
   const prevStep = () => {
-    if (step === 'ticket-type') setStep('park');
-    else if (step === 'strategy') {
-      // Go back to ticket-type if it's a Disney park, otherwise park
-      if (selectedPark && supportsParkHopper(selectedPark)) {
-        setStep('ticket-type');
-      } else {
-        setStep('park');
-      }
+    const currentIndex = activeSteps.indexOf(step);
+
+    // Special case: in template mode, going back from dates returns to template browser
+    if (wizardMode === 'template' && step === 'dates') {
+      setShowTemplates(true);
+      setStep('park');
+      return;
     }
-    else if (step === 'dates') {
-      // Go back to strategy if park supports it, otherwise ticket-type/park
-      if (selectedPark && hasStrategySupport(selectedPark)) {
-        setStep('strategy');
-      } else if (selectedPark && supportsParkHopper(selectedPark)) {
-        setStep('ticket-type');
-      } else {
-        setStep('park');
-      }
+
+    // Move to the previous step in the active sequence
+    if (currentIndex > 0) {
+      setStep(activeSteps[currentIndex - 1]);
     }
-    else if (step === 'day-config') setStep('dates');
-    else if (step === 'entertainment') {
-      // Go back to day-config if it was shown, otherwise dates
-      if (isParkHopper && selectedDates.length > 1) {
-        setStep('day-config');
-      } else {
-        setStep('dates');
-      }
+  };
+
+  // Switch from template mode to custom mode
+  const switchToCustomMode = () => {
+    setWizardMode('custom');
+    setSelectedTemplate(null);
+    // Keep the selected park but reset to custom flow at appropriate step
+    if (selectedPark && supportsParkHopper(selectedPark)) {
+      setStep('ticket-type');
+    } else if (selectedPark && hasStrategySupport(selectedPark)) {
+      setStep('strategy');
+    } else {
+      setStep('dates');
     }
-    else if (step === 'rides') setStep('entertainment');
-    else if (step === 'report') setStep('rides');
   };
 
   const selectedParkData = parks.find((p) => p.id === selectedPark);
@@ -5322,39 +5515,81 @@ export default function PlanWizard() {
 
   return (
     <div className="pw-container">
-      <StepIndicator currentStep={step} />
+      <StepIndicator currentStep={step} activeSteps={activeSteps} wizardMode={wizardMode} />
 
       <div className="pw-content">
         {step === 'park' && (
           <>
-            <ParkSelection
-              parks={parks}
-              selectedPark={selectedPark}
-              onSelect={(parkId) => {
-                setSelectedPark(parkId);
-                setSelectedStrategy(null); // Reset strategy when park changes
-                // Check if this park supports park hopper
-                if (supportsParkHopper(parkId)) {
-                  setStep('ticket-type');
-                } else {
-                  // Non-hopper parks skip ticket-type
-                  setIsParkHopper(false);
-                  setSecondParkId(null);
-                  // Go to strategy if supported, otherwise dates
-                  if (hasStrategySupport(parkId)) {
-                    setStep('strategy');
-                  } else {
-                    setStep('dates');
+            {showTemplates ? (
+              <TemplateSelector
+                selectedParkId={selectedPark}
+                onSelectTemplate={(template) => {
+                  setSelectedTemplate(template);
+                  setSelectedPark(template.parkId);
+                  setWizardMode('template'); // Set template mode
+                  setShowTemplates(false);
+                  // Apply template settings
+                  if (template.strategy) {
+                    setSelectedStrategy(template.strategy);
                   }
-                }
-              }}
-            />
+                  setPreferences(prev => ({
+                    ...prev,
+                    includeBreaks: template.includeBreaks,
+                  }));
+                  // Skip to dates step since template has ride selections
+                  setStep('dates');
+                }}
+                onSkip={() => {
+                  setWizardMode('custom'); // Set custom mode when skipping templates
+                  setShowTemplates(false);
+                }}
+              />
+            ) : (
+              <>
+                <ParkSelection
+                  parks={parks}
+                  selectedPark={selectedPark}
+                  onSelect={(parkId) => {
+                    setSelectedPark(parkId);
+                    setWizardMode('custom'); // Set custom mode when manually selecting park
+                    setSelectedStrategy(null); // Reset strategy when park changes
+                    setSelectedTemplate(null); // Clear template when manually selecting park
+                    // Check if this park supports park hopper
+                    if (supportsParkHopper(parkId)) {
+                      setStep('ticket-type');
+                    } else {
+                      // Non-hopper parks skip ticket-type
+                      setIsParkHopper(false);
+                      setSecondParkId(null);
+                      // Go to strategy if supported, otherwise dates
+                      if (hasStrategySupport(parkId)) {
+                        setStep('strategy');
+                      } else {
+                        setStep('dates');
+                      }
+                    }
+                  }}
+                />
 
-            <SavedPlansView
-              plans={savedPlans}
-              onLoad={handleLoadPlan}
-              onDelete={handleDeletePlan}
-            />
+                <button
+                  className="pw-back-to-templates"
+                  onClick={() => {
+                    setShowTemplates(true);
+                    setWizardMode(null); // Reset mode when going back to template browser
+                  }}
+                  type="button"
+                >
+                  <Sparkles size={16} />
+                  Browse Quick Start Templates
+                </button>
+
+                <SavedPlansView
+                  plans={savedPlans}
+                  onLoad={handleLoadPlan}
+                  onDelete={handleDeletePlan}
+                />
+              </>
+            )}
           </>
         )}
 
@@ -5427,15 +5662,40 @@ export default function PlanWizard() {
         })()}
 
         {step === 'dates' && (
-          <DateSelection
-            selectedDates={selectedDates}
-            onToggleDate={toggleDate}
-            onUpdateDate={updateDate}
-            selectedPark={selectedPark}
-            parkHoursMap={parkHoursMap}
-            selectedStrategy={selectedStrategy}
-            onChangeStrategy={() => setStep('strategy')}
-          />
+          <>
+            <DateSelection
+              selectedDates={selectedDates}
+              onToggleDate={toggleDate}
+              onUpdateDate={updateDate}
+              selectedPark={selectedPark}
+              parkHoursMap={parkHoursMap}
+              selectedStrategy={selectedStrategy}
+              onChangeStrategy={() => setStep('strategy')}
+            />
+
+            {/* Template mode switch banner */}
+            {wizardMode === 'template' && selectedTemplate && (
+              <div className="pw-mode-switch-banner">
+                <div className="pw-mode-switch-content">
+                  <div className="pw-mode-switch-info">
+                    <span className="pw-mode-switch-badge">
+                      <Sparkles size={14} />
+                      Using Template
+                    </span>
+                    <span className="pw-mode-switch-template-name">{selectedTemplate.name}</span>
+                  </div>
+                  <button
+                    type="button"
+                    className="pw-mode-switch-btn"
+                    onClick={switchToCustomMode}
+                  >
+                    <Compass size={16} />
+                    Switch to Full Customization
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
         )}
 
         {step === 'day-config' && selectedPark && (
@@ -5466,12 +5726,43 @@ export default function PlanWizard() {
         )}
 
         {step === 'report' && report && (
-          <TripReportView
-            report={report}
-            parkName={selectedParkData?.name || 'Theme Park'}
-            onSave={handleSavePlan}
-            isSaved={isSaved}
-          />
+          <>
+            <TripReportView
+              report={report}
+              parkName={selectedParkData?.name || 'Theme Park'}
+              onSave={handleSavePlan}
+              isSaved={isSaved}
+            />
+
+            {/* Share Button */}
+            <div className="pw-share-section">
+              <button
+                className="pw-share-btn"
+                onClick={() => setShowShareModal(true)}
+                type="button"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="18" cy="5" r="3"/>
+                  <circle cx="6" cy="12" r="3"/>
+                  <circle cx="18" cy="19" r="3"/>
+                  <path d="m8.59 13.51 6.83 3.98M15.41 6.51l-6.82 3.98"/>
+                </svg>
+                Share This Plan
+              </button>
+            </div>
+
+            {/* Share Modal */}
+            {showShareModal && currentPlanId && (
+              <SharePlan
+                planId={currentPlanId}
+                parkName={selectedParkData?.name || 'Theme Park'}
+                dates={selectedDates.map(d => d.date.toISOString())}
+                totalRides={report.totalRides}
+                totalWaitTimeSaved={report.waitTimeSaved}
+                onClose={() => setShowShareModal(false)}
+              />
+            )}
+          </>
         )}
       </div>
 

@@ -1005,6 +1005,20 @@
   border-radius: 4px;
 }
 
+.pd-ride-height {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--pd-text-muted);
+  margin-top: 2px;
+}
+
+.pd-ride-height svg {
+  opacity: 0.7;
+}
+
 .pd-ride-meta {
   font-size: 12px;
   color: var(--pd-text-muted);
@@ -1252,4 +1266,11 @@
 
 .pd-error-button:hover {
   background: var(--pd-primary-hover);
+}
+
+/* ============================================
+   Weather Section
+   ============================================ */
+.pd-weather-section {
+  margin-bottom: 32px;
 }

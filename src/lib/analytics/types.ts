@@ -17,6 +17,7 @@ export interface RideMetadata {
   popularity: RidePopularity;
   category: RideCategory;
   duration: number; // Minutes for ride experience
+  minHeight?: number; // Minimum height requirement in inches (null = no requirement)
 }
 
 // Prediction confidence level
