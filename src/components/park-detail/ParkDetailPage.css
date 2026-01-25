@@ -1133,9 +1133,12 @@
 }
 
 .pd-skeleton-hero {
+  width: 100vw;
+  margin-left: calc(-50vw + 50%);
   aspect-ratio: 21 / 9;
   max-height: 400px;
   border-radius: 0;
+  margin-bottom: 32px;
 }
 
 .pd-skeleton-stat {
@@ -1151,7 +1154,8 @@
    Responsive Adjustments
    ============================================ */
 @media (max-width: 768px) {
-  .pd-hero {
+  .pd-hero,
+  .pd-skeleton-hero {
     aspect-ratio: 16 / 9;
   }
 
