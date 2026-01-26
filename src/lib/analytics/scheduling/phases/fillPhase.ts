@@ -77,7 +77,9 @@ function scheduleRideInBestSlot(
   const rideDuration = ride.duration ?? DEFAULT_RIDE_DURATION;
 
   // Find all available gaps (filter by parkId for park hopper mode)
-  const relevantBlocks = ride.parkId
+  // Only filter by parkId if blocks actually have parkId set (true park hopper mode)
+  const hasParkIdBlocks = context.timeBlocks.some(b => b.parkId);
+  const relevantBlocks = ride.parkId && hasParkIdBlocks
     ? context.timeBlocks.filter(b => b.parkId === ride.parkId)
     : context.timeBlocks;
   const gaps = findAllGaps(
@@ -245,8 +247,10 @@ export function fillWithRerides(
     }
 
     // Find available gaps (filter by parkId for park hopper mode)
+    // Only filter by parkId if blocks actually have parkId set (true park hopper mode)
     const rideDuration = ride.duration ?? DEFAULT_RIDE_DURATION;
-    const relevantBlocks = ride.parkId
+    const hasParkIdBlocks = context.timeBlocks.some(b => b.parkId);
+    const relevantBlocks = ride.parkId && hasParkIdBlocks
       ? context.timeBlocks.filter(b => b.parkId === ride.parkId)
       : context.timeBlocks;
     const gaps = findAllGaps(relevantBlocks, context.scheduledItems, rideDuration + 20);

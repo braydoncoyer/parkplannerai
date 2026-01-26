@@ -131,6 +131,18 @@ export interface TripSchedulerInput {
 // =============================================================================
 
 /**
+ * Park time boundaries for park-aware scheduling
+ * Used in park hopper mode to constrain scheduling to valid windows
+ */
+export interface ParkTimeBoundaries {
+  parkId: string;
+  /** Earliest schedulable time in minutes since midnight */
+  earliestTime: number;
+  /** Latest schedulable time in minutes since midnight */
+  latestTime: number;
+}
+
+/**
  * A time block is a schedulable region between anchors
  */
 export interface TimeBlock {

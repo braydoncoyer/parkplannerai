@@ -3342,8 +3342,9 @@ export default function PlanWizard() {
 
         if (dayIsHopper && daySecondPark && dayStartingPark) {
           // All rides by park (using per-day park settings)
-          const park1Rides = uniqueRides.filter(r => r.parkId === dayStartingPark);
-          const park2Rides = uniqueRides.filter(r => r.parkId === daySecondPark);
+          // Note: r.parkId may be string (from scheduler) while dayStartingPark is number, so compare as strings
+          const park1Rides = uniqueRides.filter(r => String(r.parkId) === String(dayStartingPark));
+          const park2Rides = uniqueRides.filter(r => String(r.parkId) === String(daySecondPark));
 
           // Track scheduled ride IDs (separate from seenRideIds which tracks re-rides)
           const scheduledRideIds = new Set<number | string>();
@@ -3372,6 +3373,19 @@ export default function PlanWizard() {
           const hourToArrivalStr = (h: number): string =>
             h >= 12 ? `${h > 12 ? h - 12 : 12}pm` : `${h}am`;
 
+          // Helper: Format minutes to arrival string with minute precision (e.g., "1:15pm")
+          // Used for Park 2 arrival after transition to avoid rounding to full hours
+          const minutesToArrivalStr = (mins: number): string => {
+            const h = Math.floor(mins / 60);
+            const m = mins % 60;
+            const period = h >= 12 ? 'pm' : 'am';
+            const displayH = h > 12 ? h - 12 : (h === 0 ? 12 : h);
+            if (m === 0) {
+              return `${displayH}${period}`;
+            }
+            return `${displayH}:${m.toString().padStart(2, '0')}${period}`;
+          };
+
           // Helper: Get end time from scheduled items
           const getScheduleEndMinutes = (): number => {
             const lastRide = [...items].reverse().find(item => item.type === 'ride');
@@ -3390,11 +3404,12 @@ export default function PlanWizard() {
           };
 
           // Helper: Schedule rides at a park and add to items
+          // startMinutes/endMinutes are in minutes since midnight for precise timing
           const scheduleRidesAtPark = async (
             parkRides: typeof park1Rides,
             parkId: number,
-            startHour: number,
-            endHour: number,
+            startMinutes: number,
+            endMinutes: number,
             isRopeDrop: boolean,
             ropeDropTarget?: string,
             ropeDropTargets?: string[],
@@ -3407,7 +3422,7 @@ export default function PlanWizard() {
               selectedRides: parkRides,
               preferences: {
                 visitDate: dateKey,
-                arrivalTime: hourToArrivalStr(startHour),
+                arrivalTime: minutesToArrivalStr(startMinutes),
                 duration: 'full-day',
                 priority: preferences.priority,
                 includeBreaks: false,
@@ -3415,7 +3430,7 @@ export default function PlanWizard() {
                 parkId: parkId,
                 ropeDropTarget: ropeDropTarget,
                 ropeDropTargets: ropeDropTargets, // Multi-target rope drop support
-                parkCloseHour: endHour,
+                parkCloseHour: Math.floor(endMinutes / 60),
                 skipFirstLastEnhancement: true, // We'll handle first/last messaging after combining parks
                 selectedStrategy: selectedStrategy || undefined, // Use selected rope drop strategy
               },
@@ -3646,8 +3661,8 @@ export default function PlanWizard() {
           await scheduleRidesAtPark(
             park1Rides,
             dayStartingPark,
-            parkOpenHour,
-            actualTransitionHour,
+            parkOpenHour * 60,              // Convert to minutes
+            actualTransitionHour * 60,      // Convert to minutes
             true, // rope drop mode
             ropeDropTargetForPark1,
             ropeDropTargetsForPark1.length > 0 ? ropeDropTargetsForPark1 : undefined,
@@ -3664,14 +3679,16 @@ export default function PlanWizard() {
           // PHASE 3: Afternoon/Evening at second park (until park close)
           // MVP: Single hop only - no returning to first park
           // ============================================================
-          const park2ArrivalHour = actualTransitionHour + Math.ceil(travelMinutes / 60);
+          // Calculate exact arrival time in minutes (no rounding!)
+          // e.g., transition at 1:00pm (780 min) + 15 min travel = 1:15pm (795 min)
+          const park2ArrivalMinutes = transitionMinutes + travelMinutes;
 
           // Schedule ALL remaining Park 2 rides until park close
           await scheduleRidesAtPark(
             park2Rides,
             daySecondPark,
-            park2ArrivalHour,
-            parkCloseHour || 22,
+            park2ArrivalMinutes,            // Exact arrival time in minutes
+            (parkCloseHour || 22) * 60,     // Convert close hour to minutes
             false,
             undefined, // ropeDropTarget (not used for park 2)
             undefined, // ropeDropTargets (not used for park 2)
@@ -4334,8 +4351,10 @@ export default function PlanWizard() {
 
             // Check if parade conflicts with dinner window and adjust accordingly
             if (wantParade) {
+              // For park hopper mode, use the ENDING park's entertainment
+              const entertainmentParkId = isParkHopper && secondParkId ? secondParkId : selectedPark;
               const liveEntertainment = entertainmentByDate[dateKey];
-              const defaultEntertainment = selectedPark ? getDefaultEntertainment(selectedPark) : null;
+              const defaultEntertainment = entertainmentParkId ? getDefaultEntertainment(entertainmentParkId) : null;
               const paradeData = liveEntertainment?.parade || defaultEntertainment?.parade;
               const paradeShowtime = paradeData?.showTimes?.[0]?.startTime;
 
@@ -4428,7 +4447,8 @@ export default function PlanWizard() {
               const transitionTime = parseTimeToMinutes(items[transitionIdxForGapFill].time);
 
               // Get park-specific rides for this hopper day
-              const gapFillPark1Rides = uniqueRides.filter(r => r.parkId === dayStartingPark);
+              // Note: r.parkId may be string (from scheduler) while dayStartingPark is number, so compare as strings
+              const gapFillPark1Rides = uniqueRides.filter(r => String(r.parkId) === String(dayStartingPark));
 
               // Helper to find gaps in a segment
               const findGapsInSegment = (segmentItems: ItineraryItem[], segmentStartMinutes: number, segmentEndMinutes: number): Array<{ start: number; end: number; duration: number }> => {
@@ -4582,19 +4602,26 @@ export default function PlanWizard() {
             items.filter(item => item.type === 'ride').map(item => item.name.replace(' ★', '').toLowerCase())
           );
 
+          // For park hopper days at end-of-day, we're at Park 2 - only add Park 2 rides
+          const currentEndOfDayParkId = dayIsHopper && daySecondPark ? daySecondPark : dayStartingPark;
+
           // First, get rides from THIS day that weren't scheduled (highest priority)
+          // For park hopper: only rides from the current park (Park 2 at end of day)
           const missingFromThisDay = uniqueRides.filter(
-            ride => !scheduledRideNames.has(ride.name.toLowerCase())
+            ride => !scheduledRideNames.has(ride.name.toLowerCase()) &&
+                    (!dayIsHopper || String(ride.parkId) === String(currentEndOfDayParkId))
           );
 
           // Then get any OTHER user-selected rides not scheduled anywhere in the trip
           // NOTE: Convert ride.id to number since seenRideIds is Set<number>
+          // For park hopper: only rides from the current park (Park 2 at end of day)
           const missingFromOtherDays = selectedRideObjects.filter(
             ride => {
               const rideIdNum = typeof ride.id === 'number' ? ride.id : parseInt(String(ride.id));
               return !seenRideIds.has(rideIdNum) &&
                      !scheduledRideNames.has(ride.name.toLowerCase()) &&
-                     !missingFromThisDay.some(r => r.id === ride.id);
+                     !missingFromThisDay.some(r => r.id === ride.id) &&
+                     (!dayIsHopper || String(ride.parkId) === String(currentEndOfDayParkId));
             }
           );
 
@@ -4660,10 +4687,13 @@ export default function PlanWizard() {
           if (allowRerides && remainingGap > 45 && allUserRidesScheduled) {
             // Get favorite rides for potential re-rides - ONLY rides already seen today
             // NOTE: Convert ride.id to number since seenRideIds is Set<number>
+            // For park hopper: ONLY include rides from the CURRENT park (Park 2 at end of day)
+            // This prevents suggesting re-rides from Park 1 when we're at Park 2
             const sortedByPopularity = [...allDayRides]
               .filter(r => {
                 const rId = typeof r.id === 'number' ? r.id : parseInt(String(r.id));
-                return seenRideIds.has(rId);
+                const isFromCurrentPark = !dayIsHopper || String(r.parkId) === String(currentEndOfDayParkId);
+                return seenRideIds.has(rId) && isFromCurrentPark;
               })
               .sort((a, b) => (b.waitTime || 0) - (a.waitTime || 0));
             const favoriteRides = sortedByPopularity.slice(0, Math.max(2, Math.ceil(sortedByPopularity.length / 2)));
@@ -4762,11 +4792,12 @@ export default function PlanWizard() {
         // ============================================================
 
         // Get live entertainment data for this date, or fall back to defaults
+        // For park hopper mode, use the ENDING park (secondParkId) since that's where evening entertainment happens
+        const currentParkId = isParkHopper && secondParkId ? secondParkId : selectedPark;
         const liveEntertainment = entertainmentByDate[dateKey];
-        const defaultEntertainment = selectedPark ? getDefaultEntertainment(selectedPark) : null;
+        const defaultEntertainment = currentParkId ? getDefaultEntertainment(currentParkId) : null;
 
         // Get entertainment support for fallback names
-        const currentParkId = isParkHopper && secondParkId ? secondParkId : selectedPark;
         const entertainmentSupport = currentParkId ? PARK_ENTERTAINMENT_SUPPORT[currentParkId] : null;
 
         // Helper to parse showtime to minutes
@@ -5057,8 +5088,22 @@ export default function PlanWizard() {
       const firstParkData = parks.find(p => p.id === selectedPark);
       const secondParkData = parks.find(p => p.id === secondParkId);
       const travelTime = getTransitionTime(selectedPark!, secondParkId);
+
+      // Find the actual transition time from the generated itinerary
+      // Look through day itineraries to find a hopper day with a transition item
+      let actualTransitionTime = transitionTime; // Default to wizard selection
+      for (const dayIt of dayItineraries) {
+        const transitionItem = dayIt.items.find(item =>
+          item.type === 'break' && item.name?.includes('Travel to')
+        );
+        if (transitionItem) {
+          actualTransitionTime = transitionItem.time;
+          break;
+        }
+      }
+
       strategySummary.push(
-        `Park Hopper: Starting at ${firstParkData?.name || 'first park'}, then transitioning to ${secondParkData?.name || 'second park'} at ${transitionTime} (~${travelTime} min travel).`
+        `Park Hopper: Starting at ${firstParkData?.name || 'first park'}, then transitioning to ${secondParkData?.name || 'second park'} at ${actualTransitionTime} (~${travelTime} min travel).`
       );
     }
 
