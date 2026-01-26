@@ -76,9 +76,12 @@ function scheduleRideInBestSlot(
 ): ScheduledItem | null {
   const rideDuration = ride.duration ?? DEFAULT_RIDE_DURATION;
 
-  // Find all available gaps
+  // Find all available gaps (filter by parkId for park hopper mode)
+  const relevantBlocks = ride.parkId
+    ? context.timeBlocks.filter(b => b.parkId === ride.parkId)
+    : context.timeBlocks;
   const gaps = findAllGaps(
-    context.timeBlocks,
+    relevantBlocks,
     context.scheduledItems,
     rideDuration + 10 // Min gap = ride duration + some buffer for wait/walk
   );
@@ -113,10 +116,13 @@ function scheduleRideInBestSlot(
     walkFromPrevious: bestSlot.walkTime,
     reasoning: generateFillReasoning(ride, bestSlot.scheduledTime, expectedWait, bestSlot.walkTime),
     land: ride.land,
-    parkId: context.input.parkId,
+    parkId: ride.parkId ?? context.input.parkId,  // Use ride's parkId for park hopper mode
   };
 
-  addItemToContext(context, item);
+  // Try to add - if conflict, return null (ride will go to overflow)
+  if (!addItemToContext(context, item)) {
+    return null;
+  }
   return item;
 }
 
@@ -238,9 +244,12 @@ export function fillWithRerides(
       break;
     }
 
-    // Find available gaps
+    // Find available gaps (filter by parkId for park hopper mode)
     const rideDuration = ride.duration ?? DEFAULT_RIDE_DURATION;
-    const gaps = findAllGaps(context.timeBlocks, context.scheduledItems, rideDuration + 20);
+    const relevantBlocks = ride.parkId
+      ? context.timeBlocks.filter(b => b.parkId === ride.parkId)
+      : context.timeBlocks;
+    const gaps = findAllGaps(relevantBlocks, context.scheduledItems, rideDuration + 20);
 
     if (gaps.length === 0) {
       break;
@@ -270,11 +279,14 @@ export function fillWithRerides(
       walkFromPrevious: bestSlot.walkTime,
       reasoning: `Re-ride opportunity. ${generateFillReasoning(ride, bestSlot.scheduledTime, expectedWait, bestSlot.walkTime)}`,
       land: ride.land,
-      parkId: context.input.parkId,
+      parkId: ride.parkId ?? context.input.parkId,  // Use ride's parkId for park hopper mode
       isReride: true,
     };
 
-    addItemToContext(context, item);
+    // Try to add - skip if conflict
+    if (!addItemToContext(context, item)) {
+      continue;
+    }
     scheduledItems.push(item);
     reridesAdded++;
   }

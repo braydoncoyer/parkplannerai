@@ -782,8 +782,12 @@ function EntertainmentPreference({
 
           try {
             // Fetch live data from API
-            const liveData = await fetchParkEntertainment(selectedPark, sd.date);
-            const defaultData = getDefaultEntertainment(selectedPark);
+            // For park hopper: use the ENDING park (secondParkId) since that's where evening entertainment happens
+            const entertainmentParkId = isParkHopper && secondParkId ? secondParkId : selectedPark;
+            const liveData = await fetchParkEntertainment(entertainmentParkId, sd.date);
+            const defaultData = getDefaultEntertainment(entertainmentParkId);
+            // Use the correct park support for names (ending park for park hopper)
+            const entertainmentSupport = isParkHopper && secondParkId ? secondarySupport : primarySupport;
 
             // Extract fireworks info
             let fireworks: LiveShowData | null = null;
@@ -795,7 +799,7 @@ function EntertainmentPreference({
               if (showData) {
                 const showtime = showData.showTimes?.[0]?.startTime;
                 fireworks = {
-                  name: showData.name || primarySupport?.fireworksName || 'Nighttime Spectacular',
+                  name: showData.name || entertainmentSupport?.fireworksName || 'Nighttime Spectacular',
                   time: showtime || '21:00',
                   timeFormatted: showtime ? formatShowTime(showtime) : '~9:00 PM',
                   isLive: !!liveFireworks?.showTimes?.[0]?.startTime,
@@ -813,7 +817,7 @@ function EntertainmentPreference({
               if (showData) {
                 const showtime = showData.showTimes?.[0]?.startTime;
                 parade = {
-                  name: showData.name || primarySupport?.paradeName || 'Parade',
+                  name: showData.name || entertainmentSupport?.paradeName || 'Parade',
                   time: showtime || '17:30',
                   timeFormatted: showtime ? formatShowTime(showtime) : '~5:30 PM',
                   isLive: !!liveParade?.showTimes?.[0]?.startTime,
@@ -833,18 +837,21 @@ function EntertainmentPreference({
             console.warn(`Failed to fetch entertainment for ${dateFormatted}:`, error);
 
             // Return fallback data on error
-            const defaultData = getDefaultEntertainment(selectedPark);
+            // For park hopper: use ending park (secondParkId)
+            const fallbackParkId = isParkHopper && secondParkId ? secondParkId : selectedPark;
+            const fallbackSupport = isParkHopper && secondParkId ? secondarySupport : primarySupport;
+            const defaultData = getDefaultEntertainment(fallbackParkId);
             return {
               date: sd.date,
               dateFormatted,
               fireworks: anyFireworks ? {
-                name: primarySupport?.fireworksName || 'Nighttime Spectacular',
+                name: fallbackSupport?.fireworksName || 'Nighttime Spectacular',
                 time: defaultData?.nighttimeSpectacular?.showTimes?.[0]?.startTime || '21:00',
                 timeFormatted: '~9:00 PM',
                 isLive: false,
               } : null,
               parade: anyParade ? {
-                name: primarySupport?.paradeName || 'Parade',
+                name: fallbackSupport?.paradeName || 'Parade',
                 time: defaultData?.parade?.showTimes?.[0]?.startTime || '17:30',
                 timeFormatted: '~5:30 PM',
                 isLive: false,
@@ -2962,14 +2969,15 @@ export default function PlanWizard() {
     // This gets real showtimes from the ThemeParks.wiki API
     const entertainmentByDate: Record<string, ParkEntertainment | null> = {};
 
-    // Fetch entertainment for primary park
-    if (selectedPark && (wantFireworks || wantParade)) {
+    // Fetch entertainment - for park hopper use the ENDING park since that's where evening entertainment happens
+    const entertainmentParkId = isParkHopper && secondParkId ? secondParkId : selectedPark;
+    if (entertainmentParkId && (wantFireworks || wantParade)) {
       const uniqueDates = [...new Set(sortedDates.map(sd => sd.date.toISOString().split('T')[0]))];
 
       await Promise.all(uniqueDates.map(async (dateStr) => {
         const targetDate = new Date(dateStr);
         try {
-          const entertainment = await fetchParkEntertainment(selectedPark, targetDate);
+          const entertainment = await fetchParkEntertainment(entertainmentParkId, targetDate);
           entertainmentByDate[dateStr] = entertainment;
         } catch (error) {
           console.warn(`Failed to fetch entertainment for ${dateStr}:`, error);

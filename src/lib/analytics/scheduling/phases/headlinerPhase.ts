@@ -11,6 +11,7 @@ import type {
   ScheduledItem,
   SchedulingContext,
   Anchor,
+  ScheduleGap,
 } from '../types';
 import { DEFAULT_RIDE_DURATION } from '../constants';
 import {
@@ -116,42 +117,109 @@ function scheduleHeadlinerAtTime(
   // Convert hour to minutes since midnight
   const targetTime = hour * 60;
 
-  // Find a gap that contains the target time
-  const gaps = findAllGaps(context.timeBlocks, context.scheduledItems, totalDuration);
+  // Find a gap that contains the target time (filter by parkId for park hopper mode)
+  const relevantBlocks = headliner.parkId
+    ? context.timeBlocks.filter(b => b.parkId === headliner.parkId)
+    : context.timeBlocks;
+  const gaps = findAllGaps(relevantBlocks, context.scheduledItems, totalDuration);
+
+  // For park hopper mode: Park 2 rides should ALWAYS use "schedule as late as possible"
+  // The conflict resolver doesn't know about park-specific windows, so it may assign
+  // mid-day hours when evening would have much lower waits
+  let skipTargetHour = false;
+  if (relevantBlocks.length > 0) {
+    const parkWindowStart = Math.min(...relevantBlocks.map(b => b.start));
+    // If this ride's park window starts AFTER the overall park open,
+    // it's a Park 2 ride - always schedule as late as possible for lower waits
+    if (parkWindowStart > context.parkOpen) {
+      skipTargetHour = true;
+    }
+  }
 
   // Find a gap that can fit the ride starting at or near the target time
-  let bestGap = null;
-  let bestScheduledTime = targetTime;
+  let bestGap: ScheduleGap | null = null;
+  let finalScheduledTime = targetTime;
+  let walkTime = 0;
 
-  for (const gap of gaps) {
-    if (gap.start <= targetTime && gap.end >= targetTime + totalDuration) {
-      bestGap = gap;
-      bestScheduledTime = targetTime;
-      break;
+  // Skip the target-hour matching if the target is invalid for this park
+  if (!skipTargetHour) {
+    for (const gap of gaps) {
+    // Calculate walk time for this gap
+    const prevItem = getItemBefore(context, gap.start);
+    const gapWalkTime = prevItem ? calculateWalkTime(prevItem.land, headliner.land) : 0;
+
+    // The total time we need from the start of the gap
+    const totalTimeInGap = gapWalkTime + totalDuration;
+
+    // Check if the gap can fit the ride including walk time
+    if (totalTimeInGap > gap.duration) {
+      continue; // Gap too small
     }
 
-    // If target time is in the gap but doesn't fit perfectly, adjust
-    if (gap.start <= targetTime && gap.end >= gap.start + totalDuration) {
+    // Calculate the actual scheduled time (start of ride after walking)
+    const earliestStart = gap.start + gapWalkTime;
+    const latestStart = gap.end - totalDuration;
+
+    // Check if target time fits within this gap
+    if (gap.start <= targetTime && targetTime + totalDuration <= gap.end) {
+      // Target time fits perfectly - use it if it's after we finish walking
+      if (targetTime >= earliestStart) {
+        bestGap = gap;
+        finalScheduledTime = targetTime;
+        walkTime = gapWalkTime;
+        break;
+      }
+    }
+
+    // If target time is within the gap OR the gap ends close to target time (within 1 hour)
+    // Only then try to fit the ride near the target
+    const gapContainsTarget = gap.start <= targetTime && targetTime <= gap.end;
+    const gapEndsNearTarget = gap.end >= targetTime - 60 && gap.end <= targetTime + 60;
+
+    if ((gapContainsTarget || gapEndsNearTarget) && latestStart >= earliestStart) {
       bestGap = gap;
-      bestScheduledTime = Math.max(targetTime, gap.start);
+      // Schedule at target time if possible, otherwise at the latest possible start within the gap
+      finalScheduledTime = Math.min(Math.max(targetTime, earliestStart), latestStart);
+      walkTime = gapWalkTime;
       break;
     }
 
     // If the gap is after the target but still at the same hour
     if (gap.start > targetTime && getHourFromMinutes(gap.start) === hour) {
-      if (gap.duration >= totalDuration) {
-        bestGap = gap;
-        bestScheduledTime = gap.start;
-        break;
-      }
+      bestGap = gap;
+      finalScheduledTime = earliestStart;
+      walkTime = gapWalkTime;
+      break;
     }
   }
+  } // End of if (!skipTargetHour)
 
-  // If no gap at target hour, find any available gap
+  // If no gap at target hour (or target hour was invalid), find the LATEST possible scheduling time
+  // This ensures headliners are scheduled as late as possible (evening = lower waits)
+  // while still finishing before entertainment anchors
   if (!bestGap) {
-    bestGap = findBestFittingGap(gaps, totalDuration);
-    if (bestGap) {
-      bestScheduledTime = bestGap.start;
+    let latestPossibleStart = -1;
+
+    // Evaluate ALL gaps and pick the one where we can schedule LATEST
+    for (const gap of gaps) {
+      const prevItem = getItemBefore(context, gap.start);
+      const gapWalkTime = prevItem ? calculateWalkTime(prevItem.land, headliner.land) : 0;
+      const totalTimeNeeded = gapWalkTime + totalDuration;
+
+      if (totalTimeNeeded <= gap.duration) {
+        // Calculate the LATEST possible start time in this gap
+        // This is the end of the gap minus the ride duration
+        const latestStartInGap = gap.end - totalDuration;
+
+        // Choose this gap if it allows a later start time
+        if (latestStartInGap > latestPossibleStart) {
+          latestPossibleStart = latestStartInGap;
+          bestGap = gap;
+          walkTime = gapWalkTime;
+          // Schedule at the latest possible time in this gap
+          finalScheduledTime = latestStartInGap;
+        }
+      }
     }
   }
 
@@ -160,14 +228,11 @@ function scheduleHeadlinerAtTime(
     return null;
   }
 
-  // Get previous item for walk time calculation
-  const prevItem = getItemBefore(context, bestScheduledTime);
-  const walkTime = prevItem
-    ? calculateWalkTime(prevItem.land, headliner.land)
-    : 0;
-
-  // Adjust scheduled time for walk
-  const finalScheduledTime = bestScheduledTime + walkTime;
+  // Final validation that the ride fits within the gap
+  if (finalScheduledTime + totalDuration > bestGap.end) {
+    // Ride doesn't actually fit - this gap won't work
+    return null;
+  }
 
   // Check if it's at optimal time
   const optimal = findOptimalPredictionHour(headliner.hourlyPredictions ?? []);
@@ -185,10 +250,55 @@ function scheduleHeadlinerAtTime(
     walkFromPrevious: walkTime,
     reasoning: generateHeadlinerReasoning(headliner, finalScheduledTime, expectedWait, isOptimalTime),
     land: headliner.land,
-    parkId: context.input.parkId,
+    parkId: headliner.parkId ?? context.input.parkId,  // Use ride's parkId for park hopper mode
   };
 
-  addItemToContext(context, item);
+  // Try to add item - if conflict, find the LATEST possible scheduling time
+  const added = addItemToContext(context, item);
+  if (!added) {
+    // Get fresh gaps after failed attempt
+    const relevantBlocks = headliner.parkId
+      ? context.timeBlocks.filter(b => b.parkId === headliner.parkId)
+      : context.timeBlocks;
+    const remainingGaps = findAllGaps(relevantBlocks, context.scheduledItems, totalDuration);
+
+    // Find the gap where we can schedule LATEST (evening = lower waits)
+    let bestFallbackGap: ScheduleGap | null = null;
+    let bestFallbackWalkTime = 0;
+    let latestPossibleStart = -1;
+
+    for (const fallbackGap of remainingGaps) {
+      const prevItem = getItemBefore(context, fallbackGap.start);
+      const fallbackWalkTime = prevItem ? calculateWalkTime(prevItem.land, headliner.land) : 0;
+      const totalTimeNeeded = fallbackWalkTime + totalDuration;
+
+      if (totalTimeNeeded <= fallbackGap.duration) {
+        // Calculate the LATEST possible start time in this gap
+        const latestStartInGap = fallbackGap.end - totalDuration;
+
+        if (latestStartInGap > latestPossibleStart) {
+          latestPossibleStart = latestStartInGap;
+          bestFallbackGap = fallbackGap;
+          bestFallbackWalkTime = fallbackWalkTime;
+        }
+      }
+    }
+
+    // Try to add at the latest possible time
+    if (bestFallbackGap) {
+      const newScheduledTime = latestPossibleStart;
+      item.scheduledTime = newScheduledTime;
+      item.endTime = newScheduledTime + totalDuration;
+      item.walkFromPrevious = bestFallbackWalkTime;
+      item.isOptimalTime = false;
+      item.reasoning = generateHeadlinerReasoning(headliner, newScheduledTime, expectedWait, false);
+
+      if (addItemToContext(context, item)) {
+        return item;
+      }
+    }
+    return null;
+  }
   return item;
 }
 

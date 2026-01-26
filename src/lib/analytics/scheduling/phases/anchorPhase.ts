@@ -282,9 +282,10 @@ export function anchorsToScheduledItems(anchors: Anchor[]): ScheduledItem[] {
   return anchors.map((anchor) => ({
     id: anchor.id,
     type: anchor.type === 'transition' ? 'transition' : 'entertainment',
-    scheduledTime: anchor.startTime,
+    // FIX: Include arrival buffer in scheduled time range to prevent ride overlaps
+    scheduledTime: anchor.startTime - anchor.arrivalBuffer,
     endTime: anchor.endTime,
-    duration: anchor.duration,
+    duration: anchor.duration + anchor.arrivalBuffer,
     entertainment:
       anchor.type !== 'transition' && anchor.type !== 'meal'
         ? {

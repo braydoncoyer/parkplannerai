@@ -9,6 +9,7 @@ import type {
   SchedulingContext,
   Anchor,
   TimeBlock,
+  ParkHopperConfig,
 } from '../types';
 import { PARK_CLOSE_BUFFER, DEFAULT_PARK_HOURS } from '../constants';
 import { parseParkHours, parseTimeToMinutes } from '../utils/timeUtils';
@@ -109,6 +110,76 @@ export function finalizeContextSetup(
   const totalHours = Math.round((context.effectiveClose - context.parkOpen) / 60 * 10) / 10;
   context.insights.push(
     `Scheduling ${totalHours} hours at the park (${formatTimeRange(context.parkOpen, context.effectiveClose)})`
+  );
+
+  if (anchors.length > 0) {
+    const entertainmentAnchors = anchors.filter(
+      (a) => a.type !== 'transition' && a.type !== 'meal'
+    );
+    if (entertainmentAnchors.length > 0) {
+      context.insights.push(
+        `${entertainmentAnchors.length} entertainment event(s) scheduled as anchors`
+      );
+    }
+  }
+
+  return context;
+}
+
+/**
+ * Finalize context setup for park hopper mode
+ * Creates separate time blocks for each park
+ */
+export function finalizeContextSetupForParkHopper(
+  context: SchedulingContext,
+  anchors: Anchor[],
+  parkHopperConfig: ParkHopperConfig,
+  transitionTime: number
+): SchedulingContext {
+  context.anchors = anchors;
+
+  // Park 2 starts after transition + travel time
+  const park2Start = transitionTime + parkHopperConfig.travelTime;
+
+  // Filter anchors by time range (not parkId, since entertainment doesn't have parkId)
+  // Park 1 anchors: those that start before transition time
+  const park1Anchors = anchors.filter(a =>
+    a.type === 'transition' ||
+    (a.startTime < transitionTime && a.startTime >= context.parkOpen)
+  );
+
+  // Park 2 anchors: those that start after park 2 begins
+  const park2Anchors = anchors.filter(a =>
+    a.startTime >= park2Start && a.type !== 'transition'
+  );
+
+  // Park 1 blocks: open -> transition (with buffer already applied in context.effectiveClose)
+  // Note: createTimeBlocks will apply PARK_CLOSE_BUFFER, but we're passing transitionTime as close
+  // so we need to add the buffer back to avoid double-applying
+  const park1Blocks = createTimeBlocks(
+    context.parkOpen,
+    transitionTime + PARK_CLOSE_BUFFER, // Add buffer since createTimeBlocks will subtract it
+    park1Anchors,
+    parkHopperConfig.park1Id
+  );
+
+  // Park 2 blocks: (transition + travel) -> close
+  // context.effectiveClose already has buffer applied, but createTimeBlocks applies it again
+  // so we add it back
+  const park2Blocks = createTimeBlocks(
+    park2Start,
+    context.effectiveClose + PARK_CLOSE_BUFFER, // Add buffer since createTimeBlocks will subtract it
+    park2Anchors,
+    parkHopperConfig.park2Id
+  );
+
+  context.timeBlocks = [...park1Blocks, ...park2Blocks];
+
+  // Generate setup insight
+  const park1Hours = Math.round((transitionTime - context.parkOpen) / 60 * 10) / 10;
+  const park2Hours = Math.round((context.effectiveClose - park2Start) / 60 * 10) / 10;
+  context.insights.push(
+    `Park hopper: ${park1Hours}h at ${parkHopperConfig.park1Name}, ${park2Hours}h at ${parkHopperConfig.park2Name}`
   );
 
   if (anchors.length > 0) {

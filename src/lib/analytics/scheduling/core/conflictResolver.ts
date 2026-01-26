@@ -20,6 +20,7 @@ import {
   getHourFromMinutes,
 } from '../utils/timeUtils';
 import { findGapsInBlock, findAllGaps } from './timeBlockManager';
+import { PARK_CLOSE_BUFFER } from '../constants';
 
 // =============================================================================
 // CONFLICT TYPES
@@ -293,7 +294,7 @@ export function findNextBestHour(
     const minuteTime = hour * 60;
 
     // Skip if outside park hours
-    if (minuteTime < parkOpen || minuteTime > parkClose - 30) {
+    if (minuteTime < parkOpen || minuteTime > parkClose - PARK_CLOSE_BUFFER) {
       continue;
     }
 

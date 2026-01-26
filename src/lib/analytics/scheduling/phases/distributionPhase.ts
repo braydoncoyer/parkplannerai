@@ -14,23 +14,35 @@ import { calculateSavingsDelta } from '../utils/timeUtils';
 import { normalizeLandName } from '../core/proximityCalculator';
 
 // =============================================================================
+// DISTRIBUTION STRATEGY
+// =============================================================================
+
+export type DistributionStrategy = 'even' | 'front-load';
+
+// =============================================================================
 // RIDE DISTRIBUTION
 // =============================================================================
 
 /**
  * Distribute user-selected rides across trip days
  *
- * Strategy:
+ * Strategy options:
+ * - 'even': Distribute rides evenly across all days (default)
+ * - 'front-load': Put all rides on Day 1 for re-rides on subsequent days
+ *
+ * Even strategy:
  * 1. Headliners distributed evenly (1-2 per day)
  * 2. Rides grouped by land when possible
  * 3. Entertainment-coordinated rides on appropriate days
  * 4. Capacity-balanced across days
  *
  * @param input Multi-day trip input
+ * @param strategy Distribution strategy ('even' or 'front-load')
  * @returns Map of day index to rides for that day
  */
 export function distributeRidesAcrossDays(
-  input: TripSchedulerInput
+  input: TripSchedulerInput,
+  strategy: DistributionStrategy = 'even'
 ): Map<number, RideWithPredictions[]> {
   const distribution = new Map<number, RideWithPredictions[]>();
   const numDays = input.days.length;
@@ -44,6 +56,13 @@ export function distributeRidesAcrossDays(
     return distribution;
   }
 
+  // Front-load strategy: all rides on Day 1 for re-rides on subsequent days
+  if (strategy === 'front-load') {
+    distribution.set(0, [...input.allSelectedRides]);
+    return distribution;
+  }
+
+  // Even distribution strategy (default)
   // Categorize rides
   const { headliners, popular, moderate, low } = categorizeRides(input.allSelectedRides);
 

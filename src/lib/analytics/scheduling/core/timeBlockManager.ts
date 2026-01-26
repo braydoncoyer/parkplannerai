@@ -412,11 +412,37 @@ export function estimateRemainingCapacity(
 
 /**
  * Update scheduling context after adding an item
+ * Returns true if item was added successfully, false if there was a conflict
  */
 export function addItemToContext(
   context: SchedulingContext,
   item: ScheduledItem
-): void {
+): boolean {
+  // Check for conflicts before adding
+  if (hasConflict(item.scheduledTime, item.endTime, context.usedSlots)) {
+    return false;
+  }
+
+  // Check endTime doesn't exceed the relevant time block boundary
+  // This is critical for park hopper mode where Park 1 rides must end before transition
+  const relevantBlock = context.timeBlocks.find(block =>
+    block.parkId === item.parkId &&
+    item.scheduledTime >= block.start &&
+    item.scheduledTime < block.end
+  );
+
+  if (relevantBlock) {
+    // Validate against the specific time block boundary
+    if (item.endTime > relevantBlock.end) {
+      return false;
+    }
+  } else {
+    // Fallback to overall effectiveClose check (non-park-hopper mode)
+    if (item.endTime > context.effectiveClose) {
+      return false;
+    }
+  }
+
   // Add to scheduled items
   context.scheduledItems.push(item);
 
@@ -438,6 +464,8 @@ export function addItemToContext(
   if (item.type === 'ride' && item.ride) {
     context.scheduledRideIds.add(item.ride.id);
   }
+
+  return true;
 }
 
 /**

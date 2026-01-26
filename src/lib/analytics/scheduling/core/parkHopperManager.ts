@@ -189,25 +189,25 @@ export function calculateOptimalTransitionTime(
     }
   }
 
-  // Choose the best option
+  // Choose the best option - default is eligibility time
+  // We prefer EARLIER transitions to maximize time at Park 2
   let transitionTime = atEligibility;
   let reasoning = 'Transition at earliest eligible time';
 
-  // If entertainment option exists and is reasonable, prefer it
+  // If entertainment option exists and is earlier than current, prefer it
   if (beforeEntertainment !== null && beforeEntertainment >= eligibilityTime) {
-    if (!forHeadliner || beforeEntertainment <= forHeadliner) {
+    if (beforeEntertainment < transitionTime) {
       transitionTime = beforeEntertainment;
       reasoning = 'Transition timed to arrive before selected entertainment';
     }
   }
 
-  // If headliner option exists and is better than current
-  if (forHeadliner !== null && forHeadliner >= eligibilityTime) {
+  // If headliner option exists and is EARLIER than current, consider it
+  // (We don't want to delay transition just for a headliner's late-evening optimal time)
+  if (forHeadliner !== null && forHeadliner >= eligibilityTime && forHeadliner < transitionTime) {
     const bestHeadliner = headlinerOptimalTimes.sort((a, b) => b.delta - a.delta)[0];
-    if (forHeadliner <= transitionTime || transitionTime === atEligibility) {
-      transitionTime = forHeadliner;
-      reasoning = `Transition timed for ${bestHeadliner.ride.name}'s optimal window`;
-    }
+    transitionTime = forHeadliner;
+    reasoning = `Transition timed for ${bestHeadliner.ride.name}'s optimal window`;
   }
 
   return { transitionTime, reasoning };

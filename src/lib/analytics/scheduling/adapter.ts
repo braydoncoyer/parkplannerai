@@ -276,10 +276,88 @@ async function buildParkHopperConfigAsync(
   const eligibilityTime = 660; // 11 AM default
 
   // Convert rides for both parks in parallel
-  const [park1Rides, park2Rides] = await Promise.all([
+  const [park1RidesRaw, park2RidesRaw] = await Promise.all([
     convertRidesAsync(legacyHopper.park1Rides, visitDate, convex),
     convertRidesAsync(legacyHopper.park2Rides, visitDate, convex),
   ]);
+
+  // Set parkId on each ride so they get scheduled in the correct park's time blocks
+  const park1Rides = park1RidesRaw.map(ride => ({
+    ...ride,
+    parkId: String(legacyHopper.park1Id),
+  }));
+  const park2Rides = park2RidesRaw.map(ride => ({
+    ...ride,
+    parkId: String(legacyHopper.park2Id),
+  }));
+
+  return {
+    enabled: true,
+    park1Id: String(legacyHopper.park1Id),
+    park2Id: String(legacyHopper.park2Id),
+    park1Name: legacyHopper.park1Name,
+    park2Name: legacyHopper.park2Name,
+    eligibilityTime,
+    travelTime: 15, // Default travel time
+    userTransitionTime: transitionMinutes,
+    park1Rides,
+    park2Rides,
+  };
+}
+
+/**
+ * Build park hopper config from legacy format (sync version)
+ */
+function buildParkHopperConfigSync(
+  legacyHopper: LegacyOptimizationInput['parkHopper'],
+  visitDate: string
+): ParkHopperConfig | undefined {
+  if (!legacyHopper?.enabled) {
+    return undefined;
+  }
+
+  // Parse transition time to minutes
+  const transitionMinutes = parseTimeToMinutes(legacyHopper.transitionTime);
+
+  // Default eligibility (11 AM for Disneyland)
+  const eligibilityTime = 660; // 11 AM default
+
+  // Convert rides (sync, using basic predictor)
+  const convertRidesSync = (rides: LegacyRide[]): RideWithPredictions[] => {
+    return rides.map((ride) => {
+      if (ride.hourlyPredictions && ride.hourlyPredictions.length > 0) {
+        return {
+          id: ride.id,
+          name: ride.name,
+          land: ride.land,
+          isOpen: ride.isOpen,
+          waitTime: ride.waitTime,
+          popularity: (ride.popularity as any) || 'moderate',
+          category: (ride.category as any) || 'family',
+          duration: ride.duration || 5,
+          hourlyPredictions: ride.hourlyPredictions,
+        };
+      }
+      const enriched = predictRideWaitTimes(
+        { id: ride.id, name: ride.name, land: ride.land, isOpen: ride.isOpen, waitTime: ride.waitTime },
+        new Date(visitDate)
+      );
+      return { ...enriched, duration: ride.duration || enriched.duration || 5 };
+    });
+  };
+
+  const park1RidesRaw = convertRidesSync(legacyHopper.park1Rides);
+  const park2RidesRaw = convertRidesSync(legacyHopper.park2Rides);
+
+  // Set parkId on each ride
+  const park1Rides = park1RidesRaw.map(ride => ({
+    ...ride,
+    parkId: String(legacyHopper.park1Id),
+  }));
+  const park2Rides = park2RidesRaw.map(ride => ({
+    ...ride,
+    parkId: String(legacyHopper.park2Id),
+  }));
 
   return {
     enabled: true,
@@ -338,14 +416,20 @@ export async function convertToSchedulerInputAsync(
     allowRerides: false, // Controlled by trip-level logic
   };
 
-  // Build rope drop config
-  const ropeDrop = buildRopeDropConfig(legacy.preferences, selectedRides);
-
-  // Build park hopper config
+  // Build park hopper config first (so we can use rides with parkId set)
   const parkHopper = await buildParkHopperConfigAsync(legacy.parkHopper, visitDate, convex);
 
+  // For park hopper mode, use the rides from parkHopper config (which have parkId set)
+  // This ensures rides are scheduled in the correct park's time blocks
+  const finalSelectedRides = parkHopper?.enabled
+    ? [...parkHopper.park1Rides, ...parkHopper.park2Rides]
+    : selectedRides;
+
+  // Build rope drop config using the final rides
+  const ropeDrop = buildRopeDropConfig(legacy.preferences, finalSelectedRides);
+
   return {
-    selectedRides,
+    selectedRides: finalSelectedRides,
     parkHours,
     entertainment: convertEntertainment(legacy.entertainment),
     preferences,
@@ -408,14 +492,24 @@ export function convertToSchedulerInput(
     priority: legacy.preferences.priority,
     allowRerides: false,
   };
-  const ropeDrop = buildRopeDropConfig(legacy.preferences, selectedRides);
+
+  // Build park hopper config if enabled (sync version)
+  const parkHopper = buildParkHopperConfigSync(legacy.parkHopper, visitDate);
+
+  // For park hopper mode, use rides with parkId set
+  const finalSelectedRides = parkHopper?.enabled
+    ? [...parkHopper.park1Rides, ...parkHopper.park2Rides]
+    : selectedRides;
+
+  const ropeDrop = buildRopeDropConfig(legacy.preferences, finalSelectedRides);
 
   return {
-    selectedRides,
+    selectedRides: finalSelectedRides,
     parkHours,
     entertainment: convertEntertainment(legacy.entertainment),
     preferences,
     ropeDrop,
+    parkHopper,
     dayType,
     parkId: legacy.preferences.parkId ? String(legacy.preferences.parkId) : undefined,
   };

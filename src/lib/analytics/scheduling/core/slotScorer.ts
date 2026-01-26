@@ -381,15 +381,22 @@ export function generateSlotCandidates(
   const delta = calculateSavingsDelta(predictions);
 
   for (const gap of gaps) {
-    // Check if ride fits in this gap
-    const waitTime = getInterpolatedWaitTime(gap.start, predictions);
+    // Calculate walk time to this ride
     const walkFromPrev = calculateWalkTime(gap.previousLand, ride.land);
     const walkToNext = calculateWalkTime(ride.land, gap.nextLand);
 
-    const totalTimeNeeded = walkFromPrev + waitTime + rideDuration;
+    // Calculate scheduled start time (after walking from previous)
+    const scheduledTime = gap.start + walkFromPrev;
 
-    if (totalTimeNeeded > gap.duration) {
-      // Ride doesn't fit in this gap
+    // Calculate wait time at the ACTUAL scheduled time (not gap.start)
+    // This prevents rides from extending past gap end when waits increase
+    const waitTime = getInterpolatedWaitTime(scheduledTime, predictions);
+
+    const totalTimeNeeded = waitTime + rideDuration;
+    const timeAvailableAfterWalk = gap.duration - walkFromPrev;
+
+    if (totalTimeNeeded > timeAvailableAfterWalk) {
+      // Ride doesn't fit in this gap after accounting for walk time
       continue;
     }
 
@@ -399,9 +406,6 @@ export function generateSlotCandidates(
     // Instead, we rely on the scoring penalty in scoreSlotForRide() to
     // discourage poor net benefit options without eliminating them entirely.
     const netBenefitInfo = calculateNetBenefit(ride, gap, context);
-
-    // Calculate scheduled start time (after walking from previous)
-    const scheduledTime = gap.start + walkFromPrev;
 
     // Score this slot
     const score = scoreSlotForRide(ride, gap, context);

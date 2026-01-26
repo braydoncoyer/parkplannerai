@@ -19,6 +19,7 @@ import type {
 import {
   initializeSchedulingContext,
   finalizeContextSetup,
+  finalizeContextSetupForParkHopper,
   validateContext,
 } from './phases/setupPhase';
 import {
@@ -39,6 +40,8 @@ import {
 import { fillRemainingRides, fillWithRerides } from './phases/fillPhase';
 import { buildSchedulerResult } from './phases/validationPhase';
 import { distributeRidesAcrossDays, getRidesForDay } from './phases/distributionPhase';
+import { reserveSlot } from './core/timeBlockManager';
+import type { DistributionStrategy } from './phases/distributionPhase';
 
 // Utility imports
 import {
@@ -112,14 +115,51 @@ export function createOptimizedSchedule(input: SchedulerInput): SchedulerResult 
   allAnchors.sort((a, b) => a.startTime - b.startTime);
 
   // Finalize context with anchors and time blocks
-  finalizeContextSetup(context, allAnchors, input.parkId);
+  if (input.parkHopper?.enabled) {
+    const transitionAnchor = allAnchors.find(a => a.type === 'transition');
+    const transitionTime = transitionAnchor?.startTime ?? input.parkHopper.eligibilityTime;
+    finalizeContextSetupForParkHopper(context, allAnchors, input.parkHopper, transitionTime);
+  } else {
+    finalizeContextSetup(context, allAnchors, input.parkId);
+  }
 
-  // Add entertainment items to schedule
+  // Add entertainment items to schedule and reserve their time slots
   const entertainmentItems = anchorsToScheduledItems(
     entertainmentAnchors.filter((a) => a.type !== 'meal')
   );
   for (const item of entertainmentItems) {
     context.scheduledItems.push(item);
+    // Reserve the entertainment slot so rides can't be scheduled during this time
+    reserveSlot(
+      context.usedSlots,
+      item.id,
+      item.scheduledTime,
+      item.endTime,
+      item.id,
+      item.entertainment?.location,
+      item.parkId
+    );
+  }
+
+  // Add transition item to schedule for park hopper mode
+  if (input.parkHopper?.enabled) {
+    const transitionAnchor = allAnchors.find(a => a.type === 'transition');
+    if (transitionAnchor) {
+      const transitionItems = anchorsToScheduledItems([transitionAnchor]);
+      for (const item of transitionItems) {
+        context.scheduledItems.push(item);
+        // Reserve the transition slot
+        reserveSlot(
+          context.usedSlots,
+          item.id,
+          item.scheduledTime,
+          item.endTime,
+          item.id,
+          undefined,
+          item.parkId
+        );
+      }
+    }
   }
 
   // Validate context
@@ -218,8 +258,13 @@ export async function createOptimizedScheduleAsync(
  * @returns Trip result with day schedules and trip-wide statistics
  */
 export function createOptimizedTrip(input: TripSchedulerInput): TripSchedulerResult {
-  // Distribute rides across days
-  const distribution = distributeRidesAcrossDays(input);
+  // Determine distribution strategy
+  // For light trips with rerides enabled, front-load all rides on Day 1
+  const ridesPerDay = input.allSelectedRides.length / input.days.length;
+  const strategy: DistributionStrategy = (ridesPerDay <= 4 && input.allowRerides) ? 'front-load' : 'even';
+
+  // Distribute rides across days using determined strategy
+  const distribution = distributeRidesAcrossDays(input, strategy);
 
   // Initialize trip context
   let tripContext = createTripContext(input.allSelectedRides);
