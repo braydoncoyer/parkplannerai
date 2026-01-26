@@ -286,6 +286,56 @@ export function findOptimalPredictionHour(hourlyPredictions: number[]): {
 }
 
 /**
+ * Find the hour with the lowest predicted wait time WITHIN a constrained time window
+ * Used for park hopper mode to find optimal times for Park 2 rides
+ *
+ * @param hourlyPredictions 13-hour array of predicted wait times (9am-9pm)
+ * @param earliestTime Earliest allowed time in minutes since midnight
+ * @param latestTime Latest allowed time in minutes since midnight
+ */
+export function findOptimalPredictionHourInWindow(
+  hourlyPredictions: number[],
+  earliestTime: number,
+  latestTime: number
+): {
+  hour: number;
+  index: number;
+  wait: number;
+} | null {
+  // Convert time boundaries to valid hour range
+  const earliestHour = Math.max(PREDICTION_HOURS.start, Math.ceil(earliestTime / 60));
+  const latestHour = Math.min(PREDICTION_HOURS.end, Math.floor(latestTime / 60));
+
+  if (earliestHour > latestHour) {
+    return null; // No valid hours in window
+  }
+
+  let minIndex = -1;
+  let minWait = Infinity;
+
+  for (let hour = earliestHour; hour <= latestHour; hour++) {
+    const index = hour - PREDICTION_HOURS.start;
+    if (index < 0 || index >= hourlyPredictions.length) continue;
+
+    const wait = hourlyPredictions[index];
+    if (wait !== undefined && wait < minWait) {
+      minWait = wait;
+      minIndex = index;
+    }
+  }
+
+  if (minIndex === -1) {
+    return null;
+  }
+
+  return {
+    hour: predictionIndexToHour(minIndex),
+    index: minIndex,
+    wait: minWait,
+  };
+}
+
+/**
  * Find the hour with the highest predicted wait time
  */
 export function findPeakPredictionHour(hourlyPredictions: number[]): {

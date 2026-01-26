@@ -14,6 +14,7 @@ import type {
 } from '../types';
 import {
   findOptimalPredictionHour,
+  findOptimalPredictionHourInWindow,
   findPeakPredictionHour,
   calculateSavingsDelta,
   doRangesOverlap,
@@ -278,14 +279,25 @@ export function findAlternativeTimes(
 
 /**
  * Find the next best hour for a ride (excluding already claimed times)
+ *
+ * @param ride The ride to find a time for
+ * @param claimedHours Set of hours already claimed by other headliners
+ * @param parkOpen Overall park open time in minutes since midnight
+ * @param parkClose Overall park close time in minutes since midnight
+ * @param parkBoundary Optional park-specific time boundary (for park hopper mode)
  */
 export function findNextBestHour(
   ride: RideWithPredictions,
   claimedHours: Set<number>,
   parkOpen: number,
-  parkClose: number
+  parkClose: number,
+  parkBoundary?: { earliestTime: number; latestTime: number }
 ): { hour: number; wait: number } | null {
   const predictions = ride.hourlyPredictions ?? [];
+
+  // Use park-specific boundaries if provided, otherwise use overall park hours
+  const effectiveOpen = parkBoundary?.earliestTime ?? parkOpen;
+  const effectiveClose = parkBoundary?.latestTime ?? parkClose;
 
   // Create array of hours with their wait times
   const hourWaits: { hour: number; wait: number }[] = [];
@@ -293,8 +305,8 @@ export function findNextBestHour(
   for (let hour = 9; hour <= 21; hour++) {
     const minuteTime = hour * 60;
 
-    // Skip if outside park hours
-    if (minuteTime < parkOpen || minuteTime > parkClose - PARK_CLOSE_BUFFER) {
+    // Skip if outside effective park hours for this ride
+    if (minuteTime < effectiveOpen || minuteTime > effectiveClose - PARK_CLOSE_BUFFER) {
       continue;
     }
 
@@ -379,12 +391,19 @@ export function conflictsWithAnchor(
 /**
  * Batch resolve all headliner conflicts
  * Returns an ordered list of headliners with their assigned hours
+ *
+ * @param headliners All headliner rides to schedule
+ * @param ropeDropTargetIds IDs of rope drop target rides
+ * @param parkOpen Overall park open time in minutes since midnight
+ * @param parkClose Overall park close time in minutes since midnight
+ * @param parkBoundaries Optional map of parkId to time boundaries (for park hopper mode)
  */
 export function resolveAllHeadlinerConflicts(
   headliners: RideWithPredictions[],
   ropeDropTargetIds: Set<string | number>,
   parkOpen: number,
-  parkClose: number
+  parkClose: number,
+  parkBoundaries?: Map<string, { earliestTime: number; latestTime: number }>
 ): Map<string | number, { hour: number; wait: number }> {
   const assignments = new Map<string | number, { hour: number; wait: number }>();
   const claimedHours = new Set<number>();
@@ -407,15 +426,42 @@ export function resolveAllHeadlinerConflicts(
 
   // Assign hours in priority order
   for (const ride of sorted) {
-    const optimal = findOptimalPredictionHour(ride.hourlyPredictions ?? []);
+    // Get park-specific boundary if available
+    const parkBoundary = ride.parkId ? parkBoundaries?.get(ride.parkId) : undefined;
+
+    // Find optimal hour within the ride's valid time window
+    let optimal: { hour: number; wait: number; index: number } | null;
+
+    if (parkBoundary) {
+      // Use park-aware optimal hour finder for constrained rides
+      optimal = findOptimalPredictionHourInWindow(
+        ride.hourlyPredictions ?? [],
+        parkBoundary.earliestTime,
+        parkBoundary.latestTime
+      );
+    } else {
+      // Use standard optimal hour finder
+      optimal = findOptimalPredictionHour(ride.hourlyPredictions ?? []);
+    }
+
+    if (!optimal) {
+      // No valid hours in window - ride will go to overflow
+      continue;
+    }
 
     // Check if optimal hour is available
     if (!claimedHours.has(optimal.hour)) {
       assignments.set(ride.id, { hour: optimal.hour, wait: optimal.wait });
       claimedHours.add(optimal.hour);
     } else {
-      // Find next best hour
-      const alternative = findNextBestHour(ride, claimedHours, parkOpen, parkClose);
+      // Find next best hour within park boundary
+      const alternative = findNextBestHour(
+        ride,
+        claimedHours,
+        parkOpen,
+        parkClose,
+        parkBoundary
+      );
 
       if (alternative) {
         assignments.set(ride.id, alternative);

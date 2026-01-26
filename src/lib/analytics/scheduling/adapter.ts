@@ -66,6 +66,8 @@ export interface LegacyRide {
   popularity?: string;
   category?: string;
   duration?: number;
+  parkId?: number | string;
+  parkShortName?: string;
 }
 
 export interface LegacyEntertainment {
@@ -151,6 +153,10 @@ async function convertRidesAsync(
   }
 
   return legacyRides.map((ride) => {
+    // Preserve parkId (convert to string for scheduler compatibility)
+    const parkId = ride.parkId !== undefined ? String(ride.parkId) : undefined;
+    const parkShortName = ride.parkShortName;
+
     // If ride already has predictions, use them
     if (ride.hourlyPredictions && ride.hourlyPredictions.length > 0) {
       return {
@@ -163,6 +169,8 @@ async function convertRidesAsync(
         category: (ride.category as any) || 'family',
         duration: ride.duration || 5,
         hourlyPredictions: ride.hourlyPredictions,
+        parkId,
+        parkShortName,
       };
     }
 
@@ -172,6 +180,8 @@ async function convertRidesAsync(
       return {
         ...convexPrediction,
         duration: ride.duration || convexPrediction.duration || 5,
+        parkId,
+        parkShortName,
       };
     }
 
@@ -190,6 +200,8 @@ async function convertRidesAsync(
     return {
       ...enriched,
       duration: ride.duration || enriched.duration || 5,
+      parkId,
+      parkShortName,
     };
   });
 }
@@ -386,12 +398,14 @@ export async function convertToSchedulerInputAsync(
   // Convert rides with predictions using historical data when available
   const selectedRides = await convertRidesAsync(legacy.selectedRides, visitDate, convex);
 
-  // Parse arrival time to determine park open hour
+  // Parse arrival time to determine park open hour AND minute
   // PlanWizard already converts 'rope-drop' to actual time like '8am' before passing here
+  // For park hopper, arrival time may include minutes like '1:15pm'
   const arrivalTime = legacy.preferences.arrivalTime;
   let openHour = 9; // Default fallback
+  let openMinute = 0; // Default to 0 minutes
 
-  // Try to parse the arrival time to get the opening hour
+  // Try to parse the arrival time to get the opening hour and minute
   const timeMatch = arrivalTime.match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/i);
   if (timeMatch) {
     let hour = parseInt(timeMatch[1], 10);
@@ -399,12 +413,17 @@ export async function convertToSchedulerInputAsync(
     if (isPM && hour < 12) hour += 12;
     if (!isPM && hour === 12) hour = 0;
     openHour = hour;
+    // Extract minutes if present (e.g., "1:15pm" -> 15)
+    if (timeMatch[2]) {
+      openMinute = parseInt(timeMatch[2], 10);
+    }
   }
 
   const closeHour = legacy.preferences.parkCloseHour || 21;
 
   const parkHours: ParkHours = {
     openHour, // Use actual park opening time from arrival
+    openMinute, // Include minutes for precise timing (important for park hopper)
     closeHour,
   };
 
@@ -452,6 +471,10 @@ export function convertToSchedulerInput(
 
   // Convert rides with predictions (sync, no historical data)
   const selectedRides = legacy.selectedRides.map((ride) => {
+    // Preserve parkId (convert to string for scheduler compatibility)
+    const parkId = ride.parkId !== undefined ? String(ride.parkId) : undefined;
+    const parkShortName = ride.parkShortName;
+
     if (ride.hourlyPredictions && ride.hourlyPredictions.length > 0) {
       return {
         id: ride.id,
@@ -463,18 +486,22 @@ export function convertToSchedulerInput(
         category: (ride.category as any) || 'family',
         duration: ride.duration || 5,
         hourlyPredictions: ride.hourlyPredictions,
+        parkId,
+        parkShortName,
       };
     }
     const enriched = predictRideWaitTimes(
       { id: ride.id, name: ride.name, land: ride.land, isOpen: ride.isOpen, waitTime: ride.waitTime },
       new Date(visitDate)
     );
-    return { ...enriched, duration: ride.duration || enriched.duration || 5 };
+    return { ...enriched, duration: ride.duration || enriched.duration || 5, parkId, parkShortName };
   });
 
-  // Parse arrival time to get open hour
+  // Parse arrival time to get open hour AND minute
+  // For park hopper, arrival time may include minutes like '1:15pm'
   const arrivalTime = legacy.preferences.arrivalTime;
   let openHour = 9;
+  let openMinute = 0;
   const timeMatch = arrivalTime.match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/i);
   if (timeMatch) {
     let hour = parseInt(timeMatch[1], 10);
@@ -482,10 +509,14 @@ export function convertToSchedulerInput(
     if (isPM && hour < 12) hour += 12;
     if (!isPM && hour === 12) hour = 0;
     openHour = hour;
+    // Extract minutes if present (e.g., "1:15pm" -> 15)
+    if (timeMatch[2]) {
+      openMinute = parseInt(timeMatch[2], 10);
+    }
   }
 
   const closeHour = legacy.preferences.parkCloseHour || 21;
-  const parkHours: ParkHours = { openHour, closeHour };
+  const parkHours: ParkHours = { openHour, openMinute, closeHour };
   const preferences: SchedulerPreferences = {
     arrivalTime: arrivalTime,
     includeBreaks: legacy.preferences.includeBreaks,

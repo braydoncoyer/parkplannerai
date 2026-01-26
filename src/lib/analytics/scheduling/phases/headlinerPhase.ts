@@ -12,6 +12,7 @@ import type {
   SchedulingContext,
   Anchor,
   ScheduleGap,
+  TimeBlock,
 } from '../types';
 import { DEFAULT_RIDE_DURATION } from '../constants';
 import {
@@ -62,12 +63,16 @@ export function processHeadliners(
     return scheduledItems;
   }
 
+  // Build park boundaries from time blocks for park hopper mode
+  const parkBoundaries = buildParkBoundariesFromContext(context);
+
   // Resolve conflicts and get hour assignments
   const assignments = resolveAllHeadlinerConflicts(
     remainingHeadliners,
     ropeDropTargetIds,
     context.parkOpen,
-    context.effectiveClose
+    context.effectiveClose,
+    parkBoundaries
   );
 
   // Schedule each headliner at its assigned hour
@@ -118,7 +123,9 @@ function scheduleHeadlinerAtTime(
   const targetTime = hour * 60;
 
   // Find a gap that contains the target time (filter by parkId for park hopper mode)
-  const relevantBlocks = headliner.parkId
+  // Only filter by parkId if blocks actually have parkId set (true park hopper mode)
+  const hasParkIdBlocks = context.timeBlocks.some(b => b.parkId);
+  const relevantBlocks = headliner.parkId && hasParkIdBlocks
     ? context.timeBlocks.filter(b => b.parkId === headliner.parkId)
     : context.timeBlocks;
   const gaps = findAllGaps(relevantBlocks, context.scheduledItems, totalDuration);
@@ -257,10 +264,12 @@ function scheduleHeadlinerAtTime(
   const added = addItemToContext(context, item);
   if (!added) {
     // Get fresh gaps after failed attempt
-    const relevantBlocks = headliner.parkId
+    // Only filter by parkId if blocks actually have parkId set (true park hopper mode)
+    const hasParkIdBlocksFallback = context.timeBlocks.some(b => b.parkId);
+    const relevantBlocksFallback = headliner.parkId && hasParkIdBlocksFallback
       ? context.timeBlocks.filter(b => b.parkId === headliner.parkId)
       : context.timeBlocks;
-    const remainingGaps = findAllGaps(relevantBlocks, context.scheduledItems, totalDuration);
+    const remainingGaps = findAllGaps(relevantBlocksFallback, context.scheduledItems, totalDuration);
 
     // Find the gap where we can schedule LATEST (evening = lower waits)
     let bestFallbackGap: ScheduleGap | null = null;
@@ -331,6 +340,51 @@ function generateHeadlinerReasoning(
   }
 
   return reasons.join('. ') + '.';
+}
+
+// =============================================================================
+// PARK BOUNDARY UTILITIES
+// =============================================================================
+
+/**
+ * Build park time boundaries from scheduling context
+ * Groups time blocks by parkId and finds min/max times for each park
+ *
+ * @param context Current scheduling context
+ * @returns Map of parkId to time boundaries, or undefined if not in park hopper mode
+ */
+function buildParkBoundariesFromContext(
+  context: SchedulingContext
+): Map<string, { earliestTime: number; latestTime: number }> | undefined {
+  // Check if we have park-specific time blocks (park hopper mode)
+  const blocksWithParkId = context.timeBlocks.filter((b) => b.parkId);
+
+  if (blocksWithParkId.length === 0) {
+    return undefined; // Not in park hopper mode
+  }
+
+  const boundaries = new Map<string, { earliestTime: number; latestTime: number }>();
+
+  // Group blocks by parkId
+  for (const block of blocksWithParkId) {
+    if (!block.parkId) continue;
+
+    const existing = boundaries.get(block.parkId);
+
+    if (existing) {
+      // Update min/max times
+      existing.earliestTime = Math.min(existing.earliestTime, block.start);
+      existing.latestTime = Math.max(existing.latestTime, block.end);
+    } else {
+      // First block for this park
+      boundaries.set(block.parkId, {
+        earliestTime: block.start,
+        latestTime: block.end,
+      });
+    }
+  }
+
+  return boundaries.size > 0 ? boundaries : undefined;
 }
 
 // =============================================================================
