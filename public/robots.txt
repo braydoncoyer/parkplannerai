@@ -1,0 +1,6 @@
+# robots.txt for parkplannerai.com
+User-agent: *
+Allow: /
+
+# Sitemap location
+Sitemap: https://parkplannerai.com/sitemap-index.xml
