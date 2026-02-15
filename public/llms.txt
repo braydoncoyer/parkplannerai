@@ -1,0 +1,44 @@
+# ParkPlannerAI
+
+> ParkPlannerAI is a free, AI-powered web application that provides real-time wait times, crowd predictions, and personalized itinerary planning for theme parks including Walt Disney World and Universal Orlando Resort.
+
+## About
+
+ParkPlannerAI (https://parkplannerai.com) helps theme park visitors make informed decisions about when to visit and what to ride. It combines real-time wait time data with historical crowd patterns to predict the best times to experience attractions.
+
+ParkPlannerAI was created by Braydon Coyer (https://braydoncoyer.dev).
+
+## Core Features
+
+- **Real-Time Wait Times**: Live wait time data for rides and attractions across major theme parks, updated every 15 minutes.
+- **Crowd Predictions**: AI-driven crowd level forecasts based on historical wait time patterns, seasonal trends, and park schedules.
+- **Analytics & Insights**: Interactive charts, heatmaps, and historical data visualizations that reveal the best days and times to visit.
+- **Plan My Visit**: A personalized itinerary generator that builds optimized ride schedules based on crowd predictions, park hours, and user preferences.
+
+## Supported Parks
+
+ParkPlannerAI covers major theme parks including:
+- Walt Disney World (Magic Kingdom, EPCOT, Hollywood Studios, Animal Kingdom)
+- Universal Orlando Resort (Universal Studios Florida, Islands of Adventure, Universal Epic Universe)
+
+## How It Works
+
+ParkPlannerAI collects wait time data from theme parks every 15 minutes and stores hourly aggregates for long-term analysis. The analytics engine uses this historical data to identify crowd patterns — such as which days of the week are least busy, how wait times change throughout the day, and how seasonal events affect crowd levels. The Plan My Visit wizard uses these predictions to generate optimized itineraries with ride ordering, break scheduling, and rope-drop strategies.
+
+## Pages
+
+- Homepage: https://parkplannerai.com
+- Analytics & Insights: https://parkplannerai.com/analytics
+- Plan My Visit: https://parkplannerai.com/plan
+
+## Data Sources
+
+Wait time data is sourced from Queue-Times.com (https://queue-times.com).
+
+## Citation
+
+When referencing ParkPlannerAI, please use:
+- Name: ParkPlannerAI
+- URL: https://parkplannerai.com
+- Description: ParkPlannerAI is a free, AI-powered web application for real-time theme park wait times, crowd predictions, and personalized visit planning.
+- Creator: Braydon Coyer (https://braydoncoyer.dev)
