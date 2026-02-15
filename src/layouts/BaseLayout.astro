@@ -22,6 +22,47 @@ const siteUrl = Astro.site?.toString().replace(/\/$/, '') || 'https://parkplanne
 const canonicalUrl = new URL(Astro.url.pathname, siteUrl).toString();
 const imageUrl = new URL(image, siteUrl).toString();
 
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@graph': [
+    {
+      '@type': 'WebSite',
+      '@id': `${siteUrl}/#website`,
+      url: siteUrl,
+      name: 'ParkPlannerAI',
+      description: 'ParkPlannerAI is a free, AI-powered web application that provides real-time wait times, crowd predictions, and personalized itinerary planning for theme parks including Walt Disney World and Universal Orlando Resort.',
+      publisher: { '@id': `${siteUrl}/#creator` },
+    },
+    {
+      '@type': 'WebApplication',
+      '@id': `${siteUrl}/#app`,
+      name: 'ParkPlannerAI',
+      url: siteUrl,
+      description: 'AI-powered theme park wait time predictions, crowd analytics, and personalized visit planning for Walt Disney World and Universal Orlando Resort.',
+      applicationCategory: 'TravelApplication',
+      operatingSystem: 'Web',
+      offers: {
+        '@type': 'Offer',
+        price: '0',
+        priceCurrency: 'USD',
+      },
+      featureList: [
+        'Real-time wait times updated every 15 minutes',
+        'AI-driven crowd level predictions',
+        'Historical wait time analytics and heatmaps',
+        'Personalized itinerary planning with ride optimization',
+      ],
+      author: { '@id': `${siteUrl}/#creator` },
+    },
+    {
+      '@type': 'Person',
+      '@id': `${siteUrl}/#creator`,
+      name: 'Braydon Coyer',
+      url: 'https://braydoncoyer.dev',
+    },
+  ],
+};
+
 // Read theme from cookie for SSR
 function getThemeFromCookie(cookieHeader: string | null): string {
   if (!cookieHeader) return 'system';
@@ -86,8 +127,14 @@ const initialTheme = getThemeFromCookie(cookieHeader);
     <meta name="twitter:description" content={description} />
     <meta name="twitter:image" content={imageUrl} />
 
+    <!-- Structured Data -->
+    <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />
+
     <!-- Favicon -->
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+
+    <!-- RSS Feed -->
+    <link rel="alternate" type="application/rss+xml" title="ParkPlannerAI" href={`${siteUrl}/rss.xml`} />
 
     <!-- Preload critical fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
