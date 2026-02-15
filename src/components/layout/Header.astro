@@ -6,6 +6,13 @@ const pathname = Astro.url.pathname;
 const navItems = [
   { href: '/', label: 'Dashboard' },
   { href: '/analytics', label: 'Analytics' },
+  { href: '/blog', label: 'Blog' },
+];
+
+const mobileNavItems = [
+  { href: '/', label: 'Dashboard' },
+  { href: '/analytics', label: 'Analytics' },
+  { href: '/blog', label: 'Blog' },
   { href: '/plan', label: 'Plan My Visit' },
 ];
 
@@ -17,44 +24,117 @@ function isActive(href: string, pathname: string): boolean {
 }
 ---
 
-<header class="header">
-  <div class="header-container">
-    <a href="/" class="logo">
-      <span class="logo-icon">🎢</span>
-      <span class="logo-text">ParkPlannerAI</span>
-    </a>
+<header class="header" id="site-header">
+  <div class="header-bar">
+    <div class="header-container">
+      <a href="/" class="logo">
+        <span class="logo-icon">🎢</span>
+        <span class="logo-text">ParkPlannerAI</span>
+      </a>
 
-    <nav class="nav">
+      <nav class="desktop-nav" aria-label="Main navigation">
+        {
+          navItems.map((item) => (
+            <a
+              href={item.href}
+              class:list={['nav-link', { active: isActive(item.href, pathname) }]}
+            >
+              {item.label}
+            </a>
+          ))
+        }
+      </nav>
+
+      <div class="header-actions">
+        <ThemeToggle client:load />
+        <a href="/plan" class="cta-button">
+          Create Plan
+        </a>
+        <button
+          class="menu-trigger"
+          id="menu-trigger"
+          aria-label="Toggle navigation menu"
+          aria-expanded="false"
+        >
+          <span class="bar bar-1"></span>
+          <span class="bar bar-2"></span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="mobile-panel" id="mobile-panel">
+    <nav class="mobile-nav" aria-label="Mobile navigation">
       {
-        navItems.map((item) => (
+        mobileNavItems.map((item, i) => (
           <a
             href={item.href}
-            class={`nav-link ${isActive(item.href, pathname) ? 'active' : ''}`}
+            class:list={['mobile-link', { active: isActive(item.href, pathname) }]}
+            style={`--i: ${i}`}
           >
             {item.label}
           </a>
         ))
       }
     </nav>
-
-    <div class="header-actions">
-      <ThemeToggle client:load />
-      <a href="/plan" class="cta-button">
-        Create Plan
-      </a>
-    </div>
   </div>
+
+  <div class="backdrop" id="backdrop"></div>
 </header>
+
+<script is:inline>
+  (function () {
+    var trigger = document.getElementById('menu-trigger');
+    var panel = document.getElementById('mobile-panel');
+    var backdrop = document.getElementById('backdrop');
+    var header = document.getElementById('site-header');
+    if (!trigger || !panel || !backdrop || !header) return;
+
+    function open() {
+      header.classList.add('menu-open');
+      trigger.setAttribute('aria-expanded', 'true');
+      document.body.style.overflow = 'hidden';
+    }
+
+    function close() {
+      header.classList.remove('menu-open');
+      trigger.setAttribute('aria-expanded', 'false');
+      document.body.style.overflow = '';
+    }
+
+    trigger.addEventListener('click', function () {
+      if (header.classList.contains('menu-open')) { close(); } else { open(); }
+    });
+
+    backdrop.addEventListener('click', close);
+
+    panel.querySelectorAll('a').forEach(function (link) {
+      link.addEventListener('click', close);
+    });
+
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && header.classList.contains('menu-open')) {
+        close();
+        trigger.focus();
+      }
+    });
+  })();
+</script>
 
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=DM+Sans:wght@400;500;600;700&display=swap');
 
   .header {
-    background: var(--theme-bg-page);
-    border-bottom: 1px solid var(--theme-border);
     position: sticky;
     top: 0;
     z-index: 100;
+  }
+
+  .header-bar {
+    background: var(--theme-bg-page);
+    border-bottom: 1px solid var(--theme-border);
+    position: relative;
+    z-index: 3;
   }
 
   .header-container {
@@ -68,17 +148,17 @@ function isActive(href: string, pathname: string): boolean {
     gap: 32px;
   }
 
+  /* Logo */
   .logo {
     display: flex;
     align-items: center;
     gap: 10px;
     text-decoration: none;
     color: var(--theme-text-primary);
+    flex-shrink: 0;
   }
 
-  .logo-icon {
-    font-size: 24px;
-  }
+  .logo-icon { font-size: 24px; }
 
   .logo-text {
     font-family: 'Fraunces', Georgia, serif;
@@ -87,7 +167,8 @@ function isActive(href: string, pathname: string): boolean {
     letter-spacing: -0.5px;
   }
 
-  .nav {
+  /* Desktop nav */
+  .desktop-nav {
     display: flex;
     align-items: center;
     gap: 8px;
@@ -101,7 +182,7 @@ function isActive(href: string, pathname: string): boolean {
     text-decoration: none;
     padding: 8px 16px;
     border-radius: 8px;
-    transition: all 0.2s ease;
+    transition: color 0.2s ease, background 0.2s ease;
   }
 
   .nav-link:hover {
@@ -114,10 +195,12 @@ function isActive(href: string, pathname: string): boolean {
     background: var(--theme-primary-light);
   }
 
+  /* Right actions */
   .header-actions {
     display: flex;
     align-items: center;
     gap: 12px;
+    flex-shrink: 0;
   }
 
   .cta-button {
@@ -129,26 +212,160 @@ function isActive(href: string, pathname: string): boolean {
     padding: 10px 20px;
     border-radius: 8px;
     text-decoration: none;
-    transition: all 0.2s ease;
+    transition: background 0.2s ease, transform 0.15s ease;
   }
 
-  .cta-button:hover {
-    background: var(--theme-primary-hover);
+  .cta-button:hover { background: var(--theme-primary-hover); }
+  .cta-button:active { transform: scale(0.97); }
+
+  /* Hamburger */
+  .menu-trigger {
+    display: none;
+    width: 40px;
+    height: 40px;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 5px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    border-radius: 8px;
+    -webkit-tap-highlight-color: transparent;
   }
 
-  /* Mobile Responsive */
+  .bar {
+    display: block;
+    width: 18px;
+    height: 2px;
+    background: var(--theme-text-primary);
+    border-radius: 2px;
+    transition: transform 0.35s cubic-bezier(0.77, 0, 0.175, 1),
+                opacity 0.25s ease;
+    transform-origin: center;
+  }
+
+  .header.menu-open .bar-1 {
+    transform: translateY(3.5px) rotate(45deg);
+  }
+
+  .header.menu-open .bar-2 {
+    transform: translateY(-3.5px) rotate(-45deg);
+  }
+
+  /* Mobile panel — hidden on desktop via visibility, not display:none */
+  .mobile-panel {
+    position: absolute;
+    top: 64px;
+    left: 0;
+    right: 0;
+    z-index: 2;
+    background: var(--theme-bg-page);
+    border-bottom: 1px solid var(--theme-border);
+    padding: 8px 16px 16px;
+    transform: translateY(-10px);
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+                opacity 0.25s ease,
+                visibility 0.3s ease;
+  }
+
+  .header.menu-open .mobile-panel {
+    transform: translateY(0);
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+  }
+
+  .mobile-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .mobile-link {
+    display: block;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 16px;
+    font-weight: 500;
+    color: var(--theme-text-secondary);
+    text-decoration: none;
+    padding: 14px 16px;
+    border-radius: 10px;
+    transition: color 0.2s ease, background 0.2s ease;
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+
+  .header.menu-open .mobile-link {
+    opacity: 1;
+    transform: translateY(0);
+    transition: color 0.2s ease, background 0.2s ease,
+                opacity 0.35s ease, transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    transition-delay: calc(0.05s * var(--i));
+  }
+
+  .mobile-link:hover {
+    color: var(--theme-text-primary);
+    background: var(--theme-bg-elevated);
+  }
+
+  .mobile-link:active {
+    background: var(--theme-border);
+  }
+
+  .mobile-link.active {
+    color: var(--theme-primary);
+    background: var(--theme-primary-light);
+  }
+
+  /* Backdrop — hidden on desktop via visibility, not display:none */
+  .backdrop {
+    position: fixed;
+    inset: 64px 0 0 0;
+    z-index: 1;
+    background: rgba(0, 0, 0, 0.2);
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: opacity 0.3s ease,
+                visibility 0.3s ease;
+  }
+
+  .header.menu-open .backdrop {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+  }
+
+  /* Mobile breakpoint */
   @media (max-width: 768px) {
     .header-container {
       padding: 0 16px;
     }
 
-    .nav {
-      display: none;
+    .desktop-nav {
+      display: none !important;
     }
 
     .cta-button {
-      padding: 8px 16px;
-      font-size: 13px;
+      display: none !important;
+    }
+
+    .menu-trigger {
+      display: flex;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .bar,
+    .mobile-panel,
+    .mobile-link,
+    .backdrop {
+      transition-duration: 0.01ms !important;
     }
   }
 </style>

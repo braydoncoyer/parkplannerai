@@ -19,7 +19,9 @@ ParkPlannerAI was created by Braydon Coyer (https://braydoncoyer.dev).
 
 ParkPlannerAI covers major theme parks including:
 - Walt Disney World (Magic Kingdom, EPCOT, Hollywood Studios, Animal Kingdom)
+- Disneyland Resort (Disneyland, Disney California Adventure)
 - Universal Orlando Resort (Universal Studios Florida, Islands of Adventure, Universal Epic Universe)
+- Universal Studios Hollywood
 
 ## How It Works
 
@@ -30,6 +32,7 @@ ParkPlannerAI collects wait time data from theme parks every 15 minutes and stor
 - Homepage: https://parkplannerai.com
 - Analytics & Insights: https://parkplannerai.com/analytics
 - Plan My Visit: https://parkplannerai.com/plan
+- Data & Insights Blog: https://parkplannerai.com/blog
 
 ## Data Sources
 

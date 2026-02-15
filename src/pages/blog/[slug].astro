@@ -1,0 +1,367 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import Header from '../../components/layout/Header.astro';
+import { getCollection, render } from 'astro:content';
+
+export async function getStaticPaths() {
+  const posts = await getCollection('blog');
+  return posts.map((post) => ({
+    params: { slug: post.id },
+    props: { post },
+  }));
+}
+
+const { post } = Astro.props;
+const { Content } = await render(post);
+---
+
+<BaseLayout
+  title={`${post.data.title} | ParkPlannerAI`}
+  description={post.data.description}
+>
+  <Header />
+  <main class="blog-post">
+    <article class="container">
+      <div class="post-header">
+        <a href="/blog" class="back-link">&larr; All Articles</a>
+        <div class="post-meta">
+          <time datetime={post.data.pubDate.toISOString()}>
+            {post.data.pubDate.toLocaleDateString('en-US', {
+              year: 'numeric',
+              month: 'long',
+              day: 'numeric',
+            })}
+          </time>
+          {post.data.parks && (
+            <div class="park-tags">
+              {post.data.parks.map((park: string) => (
+                <span class="park-tag">{park}</span>
+              ))}
+            </div>
+          )}
+        </div>
+        <h1>{post.data.title}</h1>
+        <p class="description">{post.data.description}</p>
+      </div>
+      <div class="post-content">
+        <Content />
+      </div>
+      <div class="post-footer">
+        <div class="cta-box">
+          <h3>Plan your visit with real data</h3>
+          <p>Use ParkPlannerAI's live wait times and crowd predictions to plan the perfect park day.</p>
+          <div class="cta-links">
+            <a href="/analytics" class="cta-primary">View Analytics</a>
+            <a href="/plan" class="cta-secondary">Plan My Visit</a>
+          </div>
+        </div>
+      </div>
+    </article>
+  </main>
+  <footer class="page-footer">
+    <p>&copy; {new Date().getFullYear()} ParkPlannerAI</p>
+    <p>Data from <a href="https://queue-times.com" target="_blank" rel="noopener noreferrer">Queue-Times.com</a></p>
+    <p>Crafted by <a href="https://braydoncoyer.dev" target="_blank" rel="noopener noreferrer">Braydon Coyer</a></p>
+  </footer>
+</BaseLayout>
+
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=DM+Sans:wght@400;500;600;700&display=swap');
+
+  .blog-post {
+    background-color: var(--theme-bg-page);
+    min-height: calc(100vh - 64px);
+  }
+
+  .container {
+    max-width: 740px;
+    margin: 0 auto;
+    padding: 0 24px;
+  }
+
+  .post-header {
+    padding: 32px 0;
+    border-bottom: 1px solid var(--theme-border);
+    margin-bottom: 32px;
+  }
+
+  .back-link {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--theme-primary);
+    text-decoration: none;
+    display: inline-block;
+    margin-bottom: 20px;
+  }
+
+  .back-link:hover {
+    text-decoration: underline;
+  }
+
+  .post-meta {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+  }
+
+  .post-meta time {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    color: var(--theme-text-muted);
+  }
+
+  .park-tags {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .park-tag {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--theme-primary);
+    background: var(--theme-primary-light);
+    padding: 2px 8px;
+    border-radius: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+
+  h1 {
+    font-family: 'Fraunces', Georgia, serif;
+    font-size: 36px;
+    font-weight: 600;
+    color: var(--theme-text-primary);
+    margin: 0 0 10px 0;
+    letter-spacing: -0.5px;
+    line-height: 1.2;
+  }
+
+  .description {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 16px;
+    color: var(--theme-text-secondary);
+    margin: 0;
+    line-height: 1.5;
+  }
+
+  .post-content {
+    padding-bottom: 40px;
+  }
+
+  .post-content :global(h2) {
+    font-family: 'Fraunces', Georgia, serif;
+    font-size: 24px;
+    font-weight: 600;
+    color: var(--theme-text-primary);
+    margin: 32px 0 12px 0;
+    letter-spacing: -0.3px;
+  }
+
+  .post-content :global(h3) {
+    font-family: 'Fraunces', Georgia, serif;
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--theme-text-primary);
+    margin: 28px 0 10px 0;
+  }
+
+  .post-content :global(p) {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 16px;
+    color: var(--theme-text-primary);
+    line-height: 1.7;
+    margin: 0 0 16px 0;
+  }
+
+  .post-content :global(ul),
+  .post-content :global(ol) {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 16px;
+    color: var(--theme-text-primary);
+    line-height: 1.7;
+    margin: 0 0 16px 0;
+    padding-left: 24px;
+  }
+
+  .post-content :global(li) {
+    margin-bottom: 6px;
+  }
+
+  .post-content :global(strong) {
+    font-weight: 600;
+    color: var(--theme-text-primary);
+  }
+
+  .post-content :global(a) {
+    color: var(--theme-primary);
+    text-decoration: underline;
+  }
+
+  .post-content :global(blockquote) {
+    border-left: 3px solid var(--theme-primary);
+    margin: 24px 0;
+    padding: 12px 20px;
+    background: var(--theme-bg-elevated);
+    border-radius: 0 8px 8px 0;
+  }
+
+  .post-content :global(blockquote p) {
+    margin: 0;
+    color: var(--theme-text-secondary);
+    font-style: italic;
+  }
+
+  .post-content :global(table) {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 24px 0;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+  }
+
+  .post-content :global(th) {
+    text-align: left;
+    font-weight: 600;
+    padding: 10px 12px;
+    border-bottom: 2px solid var(--theme-border);
+    color: var(--theme-text-primary);
+  }
+
+  .post-content :global(td) {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--theme-border);
+    color: var(--theme-text-secondary);
+  }
+
+  .post-content :global(tr:hover td) {
+    background: var(--theme-bg-elevated);
+  }
+
+  .post-footer {
+    padding-bottom: 48px;
+  }
+
+  .cta-box {
+    background: var(--theme-bg-elevated);
+    border: 1px solid var(--theme-border);
+    border-radius: 12px;
+    padding: 28px;
+    text-align: center;
+  }
+
+  .cta-box h3 {
+    font-family: 'Fraunces', Georgia, serif;
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--theme-text-primary);
+    margin: 0 0 8px 0;
+  }
+
+  .cta-box p {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    color: var(--theme-text-secondary);
+    margin: 0 0 20px 0;
+  }
+
+  .cta-links {
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+  }
+
+  .cta-primary {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--theme-text-inverted);
+    background: var(--theme-primary);
+    padding: 10px 24px;
+    border-radius: 8px;
+    text-decoration: none;
+    transition: all 0.2s ease;
+  }
+
+  .cta-primary:hover {
+    background: var(--theme-primary-hover);
+  }
+
+  .cta-secondary {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--theme-primary);
+    background: var(--theme-bg-card);
+    border: 1px solid var(--theme-border);
+    padding: 10px 24px;
+    border-radius: 8px;
+    text-decoration: none;
+    transition: all 0.2s ease;
+  }
+
+  .cta-secondary:hover {
+    border-color: var(--theme-primary);
+  }
+
+  .page-footer {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+    text-align: center;
+    padding: 32px 24px;
+    background: var(--theme-bg-card);
+    border-top: 1px solid var(--theme-border);
+  }
+
+  .page-footer p {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    color: var(--theme-text-muted);
+    margin: 0;
+  }
+
+  .page-footer p:not(:last-child)::after {
+    content: '\00b7';
+    margin-left: 8px;
+    color: var(--theme-text-muted);
+  }
+
+  .page-footer a {
+    color: var(--theme-primary);
+    text-decoration: none;
+    font-weight: 500;
+  }
+
+  .page-footer a:hover {
+    text-decoration: underline;
+  }
+
+  @media (max-width: 600px) {
+    .container {
+      padding: 0 16px;
+    }
+
+    h1 {
+      font-size: 28px;
+    }
+
+    .cta-links {
+      flex-direction: column;
+    }
+
+    .page-footer {
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .page-footer p:not(:last-child)::after {
+      display: none;
+    }
+  }
+</style>

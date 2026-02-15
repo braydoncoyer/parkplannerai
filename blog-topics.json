@@ -1,0 +1,305 @@
+{
+  "description": "30-day blog content schedule for ParkPlannerAI. Each article is data-driven, targeting thin-competition niches where dashboards exist but narrative analysis does not.",
+  "topics": [
+    {
+      "day": 1,
+      "slug": "epic-universe-wait-times-by-world",
+      "title": "Epic Universe Wait Times by World: Which Land Has the Shortest Lines?",
+      "description": "We analyzed wait time data across all five Epic Universe worlds to find which lands consistently have the shortest and longest lines.",
+      "category": "wait-times-by-land",
+      "parks": ["Epic Universe"],
+      "parkIds": [334],
+      "prompt": "Write a data-driven analysis comparing average wait times across Epic Universe's five worlds (Super Nintendo World, Wizarding World - Ministry of Magic, How to Train Your Dragon - Isle of Berk, Dark Universe, and Celestial Park). Include a breakdown of average wait times by land, which land has the shortest lines, which has the longest, and how wait times in each land change throughout the day. Recommend which lands to visit first and which to save for later. Reference that readers can use ParkPlannerAI's analytics tools to see live data."
+    },
+    {
+      "day": 2,
+      "slug": "magic-kingdom-wait-times-by-land",
+      "title": "Magic Kingdom Wait Times by Land: Which Area Has the Shortest Lines?",
+      "description": "A data breakdown of average wait times across Magic Kingdom's six lands — from Fantasyland to Adventureland.",
+      "category": "wait-times-by-land",
+      "parks": ["Magic Kingdom"],
+      "parkIds": [6],
+      "prompt": "Write a data-driven analysis comparing average wait times across Magic Kingdom's lands (Fantasyland, Tomorrowland, Adventureland, Frontierland, Liberty Square, Main Street U.S.A.). Include which land has the shortest average wait, which has the longest, and how traffic flows through the park throughout the day. Mention that Fantasyland and Tomorrowland get hit hardest at rope drop. Recommend a touring strategy based on the data."
+    },
+    {
+      "day": 3,
+      "slug": "best-hour-to-ride-epic-universe",
+      "title": "The Best Hour to Ride at Epic Universe: An Hour-by-Hour Data Breakdown",
+      "description": "We tracked Epic Universe wait times by hour to find the golden windows when lines are shortest.",
+      "category": "hour-by-hour",
+      "parks": ["Epic Universe"],
+      "parkIds": [334],
+      "prompt": "Write an hour-by-hour analysis of Epic Universe wait times from park open to close. Include a table or description of average wait times for each hour of the day. Identify the peak hours and the golden windows (typically early morning and last 2 hours). Explain how wait times build after rope drop and when they start declining. Give specific actionable advice for when to ride headliners vs. when to explore."
+    },
+    {
+      "day": 4,
+      "slug": "best-hour-to-ride-magic-kingdom",
+      "title": "The Best Hour to Ride at Magic Kingdom: When Lines Are Actually Short",
+      "description": "Hour-by-hour wait time data reveals the best and worst times to ride at Magic Kingdom.",
+      "category": "hour-by-hour",
+      "parks": ["Magic Kingdom"],
+      "parkIds": [6],
+      "prompt": "Write an hour-by-hour analysis of Magic Kingdom wait times. Include average wait times for each hour from 9am to park close. Identify the morning golden hour, the midday peak, and the evening decline. Discuss how events like fireworks and parades affect ride wait times (they often drop during these events as guests cluster for entertainment). Give specific recommendations for when to hit headliners like Seven Dwarfs Mine Train, Space Mountain, and Big Thunder Mountain."
+    },
+    {
+      "day": 5,
+      "slug": "epic-universe-inverted-week-weekends-vs-weekdays",
+      "title": "Epic Universe's Inverted Week: Why Weekends Are Quieter Than Tuesdays",
+      "description": "Unlike every other theme park, Epic Universe is less crowded on weekends. Our data explains why.",
+      "category": "day-of-week",
+      "parks": ["Epic Universe"],
+      "parkIds": [334],
+      "prompt": "Write an analysis of Epic Universe's unusual day-of-week crowd pattern. Unlike traditional theme parks, weekends (especially Sunday) are actually less crowded than midweek days (Tuesday-Thursday). Explain the reasons: ticket pricing pushes budget visitors to weekdays, annual passholders don't have Epic Universe access (so locals go to the other parks on weekends), and tourists often do Disney early in their trip then Epic Universe midweek. Include day-by-day average wait time comparisons. Note this pattern may shift as the park matures."
+    },
+    {
+      "day": 6,
+      "slug": "disney-vs-universal-orlando-wait-times",
+      "title": "Disney vs Universal Orlando: Which Parks Have Shorter Wait Times Right Now?",
+      "description": "A head-to-head comparison of average wait times across all seven Orlando theme parks.",
+      "category": "cross-park",
+      "parks": ["Magic Kingdom", "EPCOT", "Hollywood Studios", "Animal Kingdom", "Universal Studios Florida", "Islands of Adventure", "Epic Universe"],
+      "parkIds": [6, 5, 7, 8, 65, 64, 334],
+      "prompt": "Write a cross-park comparison of average wait times across all seven major Orlando theme parks. Rank them from shortest to longest average waits. Discuss which operator (Disney vs Universal) currently has shorter lines overall. Include factors like park size, ride count, and crowd distribution. Note that Epic Universe as a new park has unpredictable demand. Recommend which parks to prioritize for visitors who hate lines."
+    },
+    {
+      "day": 7,
+      "slug": "best-day-to-visit-magic-kingdom",
+      "title": "The Best Day to Visit Magic Kingdom: What the Wait Time Data Actually Shows",
+      "description": "We analyzed weeks of wait time data to find the definitive best and worst days to visit Magic Kingdom.",
+      "category": "day-of-week",
+      "parks": ["Magic Kingdom"],
+      "parkIds": [6],
+      "prompt": "Write a day-of-week analysis for Magic Kingdom using actual wait time data. Include average wait times for each day of the week. Identify the best day (typically Tuesday or Wednesday) and worst day (typically Monday, surprisingly, due to guests shifting from weekend plans). Explain why Saturday isn't always the worst (Annual Passholder blockout dates help). Give specific recommendations for visitors who can only visit on weekends."
+    },
+    {
+      "day": 8,
+      "slug": "animal-kingdom-wait-times-by-land",
+      "title": "Animal Kingdom Wait Times by Land: How Pandora Compares to the Rest of the Park",
+      "description": "Pandora drives massive crowds — but the rest of Animal Kingdom tells a different story.",
+      "category": "wait-times-by-land",
+      "parks": ["Animal Kingdom"],
+      "parkIds": [8],
+      "prompt": "Write a land-by-land analysis of Animal Kingdom wait times. Compare Pandora (Flight of Passage, Na'vi River Journey), Africa (Kilimanjaro Safaris), Asia (Expedition Everest), and DinoLand U.S.A. Show how Pandora dominates the wait times while other lands remain relatively manageable. Discuss the strategy of skipping Pandora at rope drop (since everyone goes there) and hitting it during the afternoon dip or last hour."
+    },
+    {
+      "day": 9,
+      "slug": "do-wait-times-drop-during-lunch-orlando",
+      "title": "Do Wait Times Drop During Lunch at Orlando Theme Parks? We Checked the Data",
+      "description": "The common advice is to ride during lunch when others eat. But does the data actually support this?",
+      "category": "behavioral",
+      "parks": ["Magic Kingdom", "EPCOT", "Hollywood Studios", "Animal Kingdom", "Universal Studios Florida", "Islands of Adventure", "Epic Universe"],
+      "parkIds": [6, 5, 7, 8, 65, 64, 334],
+      "prompt": "Write a myth-busting analysis of whether wait times actually drop during lunch hours (11am-1pm) at Orlando theme parks. Analyze the hourly data to see if there's a measurable dip during typical lunch hours. Compare the pattern across Disney and Universal parks. The answer is nuanced: some parks show a slight dip, others don't. Discuss that the 'lunch dip' is more about the DINNER hours (5pm-7pm) than lunch. Include practical advice about when to eat vs when to ride."
+    },
+    {
+      "day": 10,
+      "slug": "hollywood-studios-wait-times-by-area",
+      "title": "Hollywood Studios Wait Times by Area: Galaxy's Edge vs Toy Story Land vs Sunset Boulevard",
+      "description": "Hollywood Studios has three major crowd magnets. Here's how their wait times compare.",
+      "category": "wait-times-by-land",
+      "parks": ["Hollywood Studios"],
+      "parkIds": [7],
+      "prompt": "Write a land-by-land analysis of Hollywood Studios wait times. Compare Star Wars: Galaxy's Edge (Rise of the Resistance, Smugglers Run), Toy Story Land (Slinky Dog Dash, Alien Swirling Saucers), Sunset Boulevard (Tower of Terror, Rock 'n' Roller Coaster), and other areas. Discuss how Rise of the Resistance dominates wait times, and how Slinky Dog Dash is often the second-longest wait despite being a relatively tame coaster. Recommend a touring order based on the data."
+    },
+    {
+      "day": 11,
+      "slug": "best-hour-to-ride-epcot",
+      "title": "The Best Hour to Ride at EPCOT: When to Hit the Headliners",
+      "description": "EPCOT's hourly wait time patterns reveal a clear strategy for riding Guardians, Test Track, and Frozen Ever After with minimal waits.",
+      "category": "hour-by-hour",
+      "parks": ["EPCOT"],
+      "parkIds": [5],
+      "prompt": "Write an hour-by-hour analysis of EPCOT wait times. Include the daily pattern from 9am to 9pm. Discuss how the front of the park (Guardians, Test Track) gets crushed in the morning while World Showcase rides (Frozen Ever After, Remy's Ratatouille) build later as guests drift that direction. Identify the best hours for headliners. Mention how evening brings shorter waits at the front as guests move to World Showcase for dining and fireworks."
+    },
+    {
+      "day": 12,
+      "slug": "disneyland-wait-times-by-land",
+      "title": "Disneyland Wait Times by Land: Where to Find the Shortest Lines",
+      "description": "From Star Wars Galaxy's Edge to Fantasyland — a data breakdown of wait times across Disneyland's eight lands.",
+      "category": "wait-times-by-land",
+      "parks": ["Disneyland"],
+      "parkIds": [16],
+      "prompt": "Write a land-by-land analysis of Disneyland wait times. Compare Galaxy's Edge, Fantasyland, Tomorrowland, Adventureland, New Orleans Square, Critter Country, Frontierland, and Mickey's Toontown. Identify which lands have the longest and shortest average waits. Discuss how Galaxy's Edge and Fantasyland tend to dominate, while Frontierland and Adventureland often have manageable lines. Recommend a touring strategy based on the data."
+    },
+    {
+      "day": 13,
+      "slug": "how-fast-wait-times-build-after-rope-drop",
+      "title": "How Fast Do Wait Times Build After Rope Drop? A Park-by-Park Analysis",
+      "description": "From the moment the gates open, how quickly do wait times ramp up? We tracked the first three hours at every Orlando park.",
+      "category": "behavioral",
+      "parks": ["Magic Kingdom", "EPCOT", "Hollywood Studios", "Animal Kingdom", "Universal Studios Florida", "Islands of Adventure", "Epic Universe"],
+      "parkIds": [6, 5, 7, 8, 65, 64, 334],
+      "prompt": "Write an analysis of how quickly wait times ramp up after park opening at each Orlando theme park. Compare the first 3 hours across all parks. Which parks go from 0 to peak fastest? (Hollywood Studios and Epic Universe tend to spike quickly due to fewer headliner rides and high demand.) Which parks build more gradually? (EPCOT tends to be more gradual.) Include the average wait time at 30 min after open, 1 hour, 2 hours, and 3 hours for each park. Give rope drop strategy recommendations."
+    },
+    {
+      "day": 14,
+      "slug": "islands-of-adventure-wait-times-by-island",
+      "title": "Islands of Adventure Wait Times by Island: Where to Find the Shortest Lines",
+      "description": "From the Wizarding World to Jurassic Park — which Islands of Adventure areas have the shortest waits?",
+      "category": "wait-times-by-land",
+      "parks": ["Islands of Adventure"],
+      "parkIds": [64],
+      "prompt": "Write a land-by-land analysis of Islands of Adventure wait times. Compare Wizarding World of Harry Potter - Hogsmeade, Marvel Super Hero Island, Jurassic Park, Skull Island, Seuss Landing, and Toon Lagoon. Discuss how Hogsmeade typically dominates wait times (Hagrid's and Forbidden Journey) while areas like Toon Lagoon and Seuss Landing have consistently short waits. Recommend a touring strategy."
+    },
+    {
+      "day": 15,
+      "slug": "the-last-two-hours-evening-best-time-to-ride",
+      "title": "The Last Two Hours: Why Evening Is the Best Time to Ride at Disney World",
+      "description": "Our data shows the final two hours before park close consistently offer the shortest wait times of the day.",
+      "category": "behavioral",
+      "parks": ["Magic Kingdom", "EPCOT", "Hollywood Studios", "Animal Kingdom"],
+      "parkIds": [6, 5, 7, 8],
+      "prompt": "Write an analysis focused on wait times during the last 2 hours before park close at each Disney World park. Show how wait times drop significantly as guests leave for dinner, fireworks-watching, or head out early. Include the average wait reduction compared to peak hours (often 40-60% shorter). Compare which parks offer the best evening riding. Note that Animal Kingdom's earlier close time makes this window particularly valuable. Give specific advice on how to plan an evening-focused strategy."
+    },
+    {
+      "day": 16,
+      "slug": "best-day-to-visit-epcot",
+      "title": "The Best Day to Visit EPCOT: A Day-by-Day Data Analysis",
+      "description": "EPCOT's crowd patterns differ from Magic Kingdom. Here's what the data says about the best and worst days.",
+      "category": "day-of-week",
+      "parks": ["EPCOT"],
+      "parkIds": [5],
+      "prompt": "Write a day-of-week analysis for EPCOT. Include average wait times for each day. Discuss how EPCOT's festival calendar (Food & Wine, Flower & Garden, etc.) impacts crowd levels on certain days. Identify the best and worst days. Mention that EPCOT often sees lower weekday crowds than Magic Kingdom because it appeals more to adults who can visit midweek. Give specific recommendations."
+    },
+    {
+      "day": 17,
+      "slug": "disney-world-vs-disneyland-wait-time-comparison",
+      "title": "Disney World vs Disneyland: Wait Time Comparison Across Both Coasts",
+      "description": "How do wait times at Walt Disney World compare to Disneyland Resort? We compared the data coast to coast.",
+      "category": "cross-park",
+      "parks": ["Magic Kingdom", "EPCOT", "Hollywood Studios", "Animal Kingdom", "Disneyland", "Disney California Adventure"],
+      "parkIds": [6, 5, 7, 8, 16, 17],
+      "prompt": "Write a cross-coast comparison of wait times between Walt Disney World (4 parks) and Disneyland Resort (2 parks). Compare overall averages, headliner wait times, and day-of-week patterns. Discuss the fundamental differences: Disneyland is smaller but often more crowded per square foot, WDW spreads crowds across four parks. Compare similar rides that exist at both (Space Mountain, Haunted Mansion, etc.) and how their wait times differ. Include practical advice for visitors choosing between the two."
+    },
+    {
+      "day": 18,
+      "slug": "every-orlando-park-ranked-by-average-wait-time",
+      "title": "Every Orlando Theme Park Ranked by Average Wait Time",
+      "description": "We ranked all seven major Orlando parks from shortest to longest average wait times. The results might surprise you.",
+      "category": "cross-park",
+      "parks": ["Magic Kingdom", "EPCOT", "Hollywood Studios", "Animal Kingdom", "Universal Studios Florida", "Islands of Adventure", "Epic Universe"],
+      "parkIds": [6, 5, 7, 8, 65, 64, 334],
+      "prompt": "Write a ranking article listing all 7 major Orlando parks from shortest to longest average wait time. Include the average wait for each park. Discuss factors that influence the ranking: number of rides, park capacity, ride throughput, popularity. Give a brief analysis of why each park ranks where it does. Note that lower average wait doesn't always mean a better experience (fewer rides can mean higher waits on the ones that exist). Recommend the best value parks for visitors who prioritize short waits."
+    },
+    {
+      "day": 19,
+      "slug": "best-hour-to-ride-hollywood-studios",
+      "title": "The Best Hour to Ride at Hollywood Studios: Beat the Lines With Data",
+      "description": "Hollywood Studios has some of Disney World's longest waits. Here's the hour-by-hour breakdown that shows when they're shortest.",
+      "category": "hour-by-hour",
+      "parks": ["Hollywood Studios"],
+      "parkIds": [7],
+      "prompt": "Write an hour-by-hour analysis of Hollywood Studios wait times. This park is notorious for long waits because it has fewer rides but several mega-headliners (Rise of the Resistance, Slinky Dog Dash, Tower of Terror, Mickey & Minnie's Runaway Railway). Show how wait times spike quickly after opening and identify the best hours for each headliner. Discuss the evening strategy: waits often drop during the nighttime show. Give a specific hour-by-hour touring plan recommendation."
+    },
+    {
+      "day": 20,
+      "slug": "thrill-rides-vs-family-rides-wait-times",
+      "title": "Thrill Rides vs Family Rides: Which Have Shorter Waits at Disney World?",
+      "description": "We compared wait times across ride categories to see how thrill rides stack up against family-friendly attractions.",
+      "category": "ride-category",
+      "parks": ["Magic Kingdom", "EPCOT", "Hollywood Studios", "Animal Kingdom"],
+      "parkIds": [6, 5, 7, 8],
+      "prompt": "Write an analysis comparing wait times by ride category (thrill, family, kids, shows) across all four Disney World parks. Show average wait times for each category. Discuss why some family rides (like Peter Pan, Frozen Ever After) have longer waits than thrill rides (like Space Mountain, Expedition Everest). The key insight: ride category doesn't predict wait time — capacity and demand do. Some of the longest waits in Disney World are for family rides. Include recommendations for which family rides to prioritize and which to skip."
+    },
+    {
+      "day": 21,
+      "slug": "best-hour-to-ride-disneyland",
+      "title": "The Best Hour to Ride at Disneyland: An Hour-by-Hour Data Analysis",
+      "description": "Disneyland packs massive crowds into a compact park. Here's when the lines are actually manageable.",
+      "category": "hour-by-hour",
+      "parks": ["Disneyland"],
+      "parkIds": [16],
+      "prompt": "Write an hour-by-hour analysis of Disneyland wait times. Disneyland is much more compact than Disney World parks, which means crowd density is higher. Show the daily pattern and identify golden windows. Discuss how Disneyland's late close times (often midnight on weekends) create an extended evening window with shorter waits. Compare to Magic Kingdom's hour-by-hour pattern. Give specific recommendations for when to ride headliners like Matterhorn, Indiana Jones, and Space Mountain."
+    },
+    {
+      "day": 22,
+      "slug": "universal-studios-florida-vs-islands-of-adventure",
+      "title": "Universal Studios Florida vs Islands of Adventure: Which Is Less Crowded?",
+      "description": "A head-to-head wait time comparison between Universal Orlando's two original parks.",
+      "category": "cross-park",
+      "parks": ["Universal Studios Florida", "Islands of Adventure"],
+      "parkIds": [65, 64],
+      "prompt": "Write a comparison between Universal Studios Florida and Islands of Adventure using wait time data. Compare overall averages, headliner waits, and crowd patterns. Discuss how Islands of Adventure typically has higher waits due to Hagrid's and the Wizarding World. Show day-of-week patterns for both. Discuss how Epic Universe's opening has affected crowds at the original two parks. Recommend which park to prioritize for visitors with limited time."
+    },
+    {
+      "day": 23,
+      "slug": "holiday-weekends-vs-regular-weekends-wait-times",
+      "title": "Holiday Weekends vs Regular Weekends: How Much Worse Are Wait Times?",
+      "description": "Everyone says to avoid holidays. But how much longer are waits, really? We put numbers to it.",
+      "category": "behavioral",
+      "parks": ["Magic Kingdom", "EPCOT", "Hollywood Studios", "Animal Kingdom", "Universal Studios Florida", "Islands of Adventure", "Epic Universe"],
+      "parkIds": [6, 5, 7, 8, 65, 64, 334],
+      "prompt": "Write a data analysis comparing wait times on holiday weekends (Presidents Day, Memorial Day, July 4th, Labor Day, Thanksgiving, Christmas) vs regular weekends at Orlando theme parks. Quantify the difference: how much longer are waits on holiday weekends? Which holidays have the biggest impact? Which parks handle holiday crowds best (more rides = better crowd distribution)? Include practical advice for visitors who must travel during holidays."
+    },
+    {
+      "day": 24,
+      "slug": "epcot-wait-times-by-area",
+      "title": "EPCOT Wait Times by Area: Where to Find the Shortest Lines",
+      "description": "EPCOT's unique layout spreads rides across distinct areas. Here's where the lines are shortest.",
+      "category": "wait-times-by-land",
+      "parks": ["EPCOT"],
+      "parkIds": [5],
+      "prompt": "Write a land/area analysis of EPCOT wait times. Compare World Celebration (Guardians, Journey of Water), World Nature (Soarin', The Seas, Living with the Land), World Discovery (Test Track, Mission: SPACE), and World Showcase (Frozen Ever After, Remy's, Gran Fiesta). Show which area has the highest and lowest average waits. Discuss how EPCOT's spread-out layout actually helps distribute crowds compared to compact parks like Hollywood Studios."
+    },
+    {
+      "day": 25,
+      "slug": "10-longest-wait-time-rides-orlando",
+      "title": "The 10 Rides With the Longest Average Wait Times in Orlando",
+      "description": "Which rides make you wait the longest? We ranked every Orlando attraction by average wait time.",
+      "category": "data-story",
+      "parks": ["Magic Kingdom", "EPCOT", "Hollywood Studios", "Animal Kingdom", "Universal Studios Florida", "Islands of Adventure", "Epic Universe"],
+      "parkIds": [6, 5, 7, 8, 65, 64, 334],
+      "prompt": "Write a ranked list of the 10 rides with the longest average wait times across all Orlando parks. Include the average wait for each, which park it's in, and why it's so long (low capacity, high demand, both). Discuss what these rides have in common. Include practical tips for riding each one with shorter waits (best hour, best day). End with a mention that ParkPlannerAI's Plan My Visit tool can optimize itineraries around these high-wait rides."
+    },
+    {
+      "day": 26,
+      "slug": "best-day-to-visit-universal-orlando",
+      "title": "The Best Day to Visit Universal Studios Florida and Islands of Adventure",
+      "description": "Which day of the week offers the shortest lines at Universal Orlando's original parks? The data answers.",
+      "category": "day-of-week",
+      "parks": ["Universal Studios Florida", "Islands of Adventure"],
+      "parkIds": [65, 64],
+      "prompt": "Write a day-of-week analysis for Universal Studios Florida and Islands of Adventure. Include average wait times for each day at both parks. Identify the best and worst days. Discuss how Universal's annual pass system and pricing affect weekday vs weekend crowds differently than Disney. Compare patterns at both parks — are the best days the same? Give specific recommendations."
+    },
+    {
+      "day": 27,
+      "slug": "disney-california-adventure-vs-disneyland",
+      "title": "Disneyland vs Disney California Adventure: Which Park Has Shorter Lines?",
+      "description": "Planning a Disneyland Resort trip? Here's which park has shorter wait times and when to visit each.",
+      "category": "cross-park",
+      "parks": ["Disneyland", "Disney California Adventure"],
+      "parkIds": [16, 17],
+      "prompt": "Write a comparison between Disneyland and Disney California Adventure using wait time data. Compare overall averages, headliner waits, and hourly patterns. Discuss how DCA typically has shorter waits but fewer total rides. Show how crowd patterns differ between the two parks throughout the day. Recommend which park to visit on which day if doing a multi-day trip. Discuss park-hopping strategies based on the data."
+    },
+    {
+      "day": 28,
+      "slug": "10-best-low-wait-rides-orlando",
+      "title": "10 Low-Wait Rides in Orlando That Are Actually Worth Riding",
+      "description": "Not every great ride has a 90-minute line. Here are the hidden gems with consistently short waits.",
+      "category": "data-story",
+      "parks": ["Magic Kingdom", "EPCOT", "Hollywood Studios", "Animal Kingdom", "Universal Studios Florida", "Islands of Adventure", "Epic Universe"],
+      "parkIds": [6, 5, 7, 8, 65, 64, 334],
+      "prompt": "Write a list of 10 rides across Orlando parks that have consistently low average wait times (under 20 minutes) but are actually excellent experiences. Include the average wait for each. Focus on rides that guests often skip in favor of headliners but are genuinely worth doing. Examples might include Tiki Room, Carousel of Progress, People Mover, Buzz Lightyear, etc. Explain why these rides have short waits (high capacity, low awareness, location in the park). Frame these as smart additions to any itinerary."
+    },
+    {
+      "day": 29,
+      "slug": "best-hour-to-ride-animal-kingdom",
+      "title": "The Best Hour to Ride at Animal Kingdom: Making the Most of the Shortest Park Day",
+      "description": "Animal Kingdom has the shortest operating hours of any Disney World park. Here's how to maximize your time.",
+      "category": "hour-by-hour",
+      "parks": ["Animal Kingdom"],
+      "parkIds": [8],
+      "prompt": "Write an hour-by-hour analysis of Animal Kingdom wait times. Animal Kingdom typically has the shortest hours at Disney World, closing as early as 7pm some days. Show how this compressed schedule creates a different wait time pattern than other parks. Discuss how Kilimanjaro Safaris is unique (best in early morning for animal activity AND shorter waits). Identify the peak hours and the best windows. Give a condensed touring plan that maximizes the limited hours."
+    },
+    {
+      "day": 30,
+      "slug": "how-wait-times-change-throughout-the-day",
+      "title": "How Wait Times Change Throughout the Day: The Pattern Every Theme Park Visitor Should Know",
+      "description": "There's a universal pattern to how wait times rise and fall throughout a theme park day. Here's what the data shows across every Orlando park.",
+      "category": "data-story",
+      "parks": ["Magic Kingdom", "EPCOT", "Hollywood Studios", "Animal Kingdom", "Universal Studios Florida", "Islands of Adventure", "Epic Universe"],
+      "parkIds": [6, 5, 7, 8, 65, 64, 334],
+      "prompt": "Write a capstone analysis showing the universal daily wait time curve that applies to nearly every Orlando theme park. The pattern: low at open, rapid rise for 2-3 hours, peak around 11am-2pm, slight afternoon plateau or dip, secondary peak around 3-5pm, then steady decline into evening. Show this curve for each park and highlight where they differ. Explain the psychology and behavior behind the curve (guests arrive, lunch patterns, heat fatigue, dinner departures). This is the single most important insight for any theme park visitor. End with a strong CTA to use ParkPlannerAI to see real-time where you are on this curve during your visit."
+    }
+  ]
+}

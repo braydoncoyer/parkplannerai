@@ -1,0 +1,278 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import Header from '../../components/layout/Header.astro';
+import { getCollection } from 'astro:content';
+
+const posts = (await getCollection('blog'))
+  .filter((post) => post.data.pubDate <= new Date())
+  .sort((a, b) => b.data.pubDate.valueOf() - a.data.pubDate.valueOf());
+---
+
+<BaseLayout
+  title="Blog | ParkPlannerAI"
+  description="Data-driven insights about theme park wait times, crowd patterns, and the best times to visit Walt Disney World, Disneyland, Universal Orlando, and Epic Universe."
+>
+  <Header />
+  <main class="blog-page">
+    <div class="page-header">
+      <div class="container">
+        <div class="header-row">
+          <h1>Data & Insights</h1>
+          <a href="/rss.xml" class="rss-link" target="_blank" rel="noopener noreferrer" aria-label="RSS Feed">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4 11a9 9 0 0 1 9 9" /><path d="M4 4a16 16 0 0 1 16 16" /><circle cx="5" cy="19" r="1" />
+            </svg>
+            <span>RSS</span>
+          </a>
+        </div>
+        <p class="subtitle">
+          Original analysis from our wait time dataset, real numbers, not guesswork
+        </p>
+      </div>
+    </div>
+    <div class="container">
+      {posts.length === 0 && (
+        <p class="empty-state">New articles coming soon. Check back shortly.</p>
+      )}
+      <div class="posts-grid">
+        {posts.map((post) => (
+          <a href={`/blog/${post.id}`} class="post-card">
+            <div class="post-meta">
+              <time datetime={post.data.pubDate.toISOString()}>
+                {post.data.pubDate.toLocaleDateString('en-US', {
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric',
+                })}
+              </time>
+              {post.data.parks && (
+                <div class="park-tags">
+                  {post.data.parks.map((park: string) => (
+                    <span class="park-tag">{park}</span>
+                  ))}
+                </div>
+              )}
+            </div>
+            <h2>{post.data.title}</h2>
+            <p>{post.data.description}</p>
+          </a>
+        ))}
+      </div>
+    </div>
+  </main>
+  <footer class="page-footer">
+    <p>&copy; {new Date().getFullYear()} ParkPlannerAI</p>
+    <p>Data from <a href="https://queue-times.com" target="_blank" rel="noopener noreferrer">Queue-Times.com</a></p>
+    <p>Crafted by <a href="https://braydoncoyer.dev" target="_blank" rel="noopener noreferrer">Braydon Coyer</a></p>
+  </footer>
+</BaseLayout>
+
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=DM+Sans:wght@400;500;600;700&display=swap');
+
+  .blog-page {
+    background-color: var(--theme-bg-page);
+    min-height: calc(100vh - 64px);
+  }
+
+  .container {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 0 24px;
+  }
+
+  .page-header {
+    padding: 40px 0 32px;
+    border-bottom: 1px solid var(--theme-border);
+    background: linear-gradient(180deg, var(--theme-bg-page) 0%, var(--theme-bg-elevated) 100%);
+    margin-bottom: 32px;
+  }
+
+  .page-header .container {
+    max-width: 900px;
+  }
+
+  .header-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+  }
+
+  h1 {
+    font-family: 'Fraunces', Georgia, serif;
+    font-size: 32px;
+    font-weight: 600;
+    color: var(--theme-text-primary);
+    margin: 0 0 8px 0;
+    letter-spacing: -0.5px;
+  }
+
+  .rss-link {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--theme-text-muted);
+    text-decoration: none;
+    padding: 6px 12px;
+    border: 1px solid var(--theme-border);
+    border-radius: 8px;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+  }
+
+  .rss-link:hover {
+    color: var(--theme-primary);
+    border-color: var(--theme-primary);
+  }
+
+  .rss-link svg {
+    flex-shrink: 0;
+  }
+
+  .subtitle {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 15px;
+    color: var(--theme-text-secondary);
+    margin: 0;
+  }
+
+  .empty-state {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 15px;
+    color: var(--theme-text-muted);
+    text-align: center;
+    padding: 64px 0;
+  }
+
+  .posts-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding-bottom: 48px;
+  }
+
+  .post-card {
+    display: block;
+    text-decoration: none;
+    background: var(--theme-bg-card);
+    border: 1px solid var(--theme-border);
+    border-radius: 12px;
+    padding: 24px;
+    transition: all 0.2s ease;
+  }
+
+  .post-card:hover {
+    border-color: var(--theme-primary);
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+  }
+
+  .post-meta {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 8px;
+    flex-wrap: wrap;
+  }
+
+  .post-meta time {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    color: var(--theme-text-muted);
+  }
+
+  .park-tags {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .park-tag {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--theme-primary);
+    background: var(--theme-primary-light);
+    padding: 2px 8px;
+    border-radius: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+
+  .post-card h2 {
+    font-family: 'Fraunces', Georgia, serif;
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--theme-text-primary);
+    margin: 0 0 6px 0;
+    letter-spacing: -0.3px;
+  }
+
+  .post-card p {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    color: var(--theme-text-secondary);
+    margin: 0;
+    line-height: 1.5;
+  }
+
+  .page-footer {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+    text-align: center;
+    padding: 32px 24px;
+    background: var(--theme-bg-card);
+    border-top: 1px solid var(--theme-border);
+  }
+
+  .page-footer p {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    color: var(--theme-text-muted);
+    margin: 0;
+  }
+
+  .page-footer p:not(:last-child)::after {
+    content: '\00b7';
+    margin-left: 8px;
+    color: var(--theme-text-muted);
+  }
+
+  .page-footer a {
+    color: var(--theme-primary);
+    text-decoration: none;
+    font-weight: 500;
+  }
+
+  .page-footer a:hover {
+    text-decoration: underline;
+  }
+
+  @media (max-width: 600px) {
+    .container {
+      padding: 0 16px;
+    }
+
+    h1 {
+      font-size: 26px;
+    }
+
+    .post-card {
+      padding: 20px;
+    }
+
+    .page-footer {
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .page-footer p:not(:last-child)::after {
+      display: none;
+    }
+  }
+</style>
